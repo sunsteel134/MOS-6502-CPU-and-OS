@@ -330,6 +330,23 @@ class CPU:
                 most = RAM.memory[address + 1]
             self.PC = (most << 8) | least
 
+    def JSR(self, mode): #like branch in LMC but its where it will come back to after the code is done
+        target_address = self.get_operand_address(mode)
+        return_address = self.PC - 1
+        RAM.memory[0x0100 + self.SP] = (return_address >> 8) & 0xFF
+        self.SP = (self.SP - 1) & 0xFF
+        RAM.memory[0x0100 + self.SP] = return_address & 0xFF
+        self.SP = (self.SP - 1) & 0xFF
+        self.PC = target_address
+
+    def RTS(self): #tells the CPU to go back to where it said JSR
+        self.SP = (self.SP + 1) & 0xFF
+        least = RAM.memory[0x0100 + self.SP]
+        self.SP = (self.SP + 1) & 0xFF
+        most = RAM.memory[0x0100 + self.SP]
+        return_address = (most << 8) | least
+        self.PC = return_address + 1
+
     def tick(self):
         command = RAM.memory[self.PC]
         self.PC += 1
