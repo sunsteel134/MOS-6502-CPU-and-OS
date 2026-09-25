@@ -28,7 +28,6 @@ class CPU:
         self.PC = 0x1000
         self.SP = 0xFD
         self.flag = FLAG_U
-        self.P = 0x20
 
     def set_flag(self, flag_mask, val):
         if val == True:
@@ -346,6 +345,118 @@ class CPU:
         most = RAM.memory[0x0100 + self.SP]
         return_address = (most << 8) | least
         self.PC = return_address + 1
+
+    def BCS(self): #branch if the carry flag is set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if self.flag & FLAG_C:
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BCC(self): #branch if the carry flag is not set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if not (self.flag & FLAG_C):
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BEQ(self): #branch if the zero flag is set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if self.flag & FLAG_Z:
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BNE(self): #branch if the zero flag is not set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if not (self.flag & FLAG_Z):
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BMI(self): #branch if the negative flag is set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if self.flag & FLAG_N:
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BPL(self): #branch if the negative flag is not set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if not (self.flag & FLAG_N):
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BVS(self): #branch if the overflow flag is set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if self.flag & FLAG_V:
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def BVC(self): #branch if the overflow flag is not set
+        offset = RAM.memory[self.PC]
+        self.PC += 1
+        if not (self.flag & FLAG_V):
+            if offset & 0x80:
+                offset -= 0x100
+            self.PC = (self.PC + offset) & 0xFFFF
+
+    def CLC(self): #clear carry flag
+        self.set_flag(FLAG_C, False)
+
+    def CLD(self): #clear decimal flag
+        self.set_flag(FLAG_D, False)
+
+    def CLI(self): #clear interupt disable flag
+        self.set_flag(FLAG_I, False)
+
+    def CLV(self): #clear overflow flag
+        self.set_flag(FLAG_V, False)
+
+    def SEC(self): #set carry flag
+        self.set_flag(FLAG_C, True)
+
+    def SED(self): #set decimal flag
+        self.set_flag(FLAG_D, True)
+
+    def SEI(self): #set interupt disable flag
+        self.set_flag(FLAG_I, True)
+
+    def BRK(self): #cause an interupt
+        return_addr = (self.PC + 1) & 0xFFFF
+        self.SP = (self.SP - 1) & 0xFF
+        RAM.memory[0x0100 + self.SP] = (return_addr >> 8) & 0xFF
+        self.SP = (self.SP - 1) & 0xFF
+        RAM.memory[0x0100 + self.SP] = return_addr & 0xFF
+        flags = self.flag | FLAG_B | FLAG_U
+        self.SP = (self.SP - 1) & 0xFF
+        RAM.memory[0x0100 + self.SP] = flags & 0xFF
+        self.set_flag(FLAG_I, True)
+        low = RAM.memory[0xFFFE]
+        high = RAM.memory[0xFFFF]
+        self.PC = (high << 8) | low
+
+    def NOP(self): #literally just pass
+        pass
+
+    def RTI(self): #come back from an interupt
+        self.SP = (self.SP + 1) & 0xFF
+        flags = RAM.memory[0x0100 + self.SP]
+        self.flag = (flags & ~(FLAG_B | FLAG_U)) | FLAG_U
+        self.SP = (self.SP + 1) & 0xFF
+        least = RAM.memory[0x0100 + self.SP]
+        self.SP = (self.SP + 1) & 0xFF
+        most = RAM.memory[0x0100 + self.SP]
+        self.PC = (most << 8) | least
 
     def tick(self):
         command = RAM.memory[self.PC]
