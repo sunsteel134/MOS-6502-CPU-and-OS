@@ -1,0 +1,150 @@
+class Bus:
+    ADDRESS_SPACE_SIZE = 0x10000
+    MAX_ADDRESS = 0xFFFF
+    RAM_START = 0x0000
+    RAM_END = 0x7FFF
+    ROM_START = 0x8000
+    ROM_END = 0xFFFF
+
+    def __init__(self):
+        self.RAM = bytearray(self.RAM_END - self.RAM_START + 1)
+        self.ROM = bytearray(self.ROM_END - self.ROM_START + 1)
+        self.devices = []
+
+    def attach(self, device): #attaches a device (peripheral) to bus
+        required_methods = ("contains", "read", "write")
+        for method_name in required_methods:
+            if not hasattr(device, method_name):
+                raise TypeError(f"Device is missing required method: {method_name}()")
+        self.devices.append(device)
+
+    def detach(self, device): #removes a device from the bus
+        if device in self.devices:
+            self.devices.remove(device)
+
+    def clear_devices(self): #removes all devices
+        self.devices.clear()
+
+    def normalise_address(self, address): #checks if the address is in right format
+        if not isinstance(address, int):
+            raise TypeError("Address must be an integer")
+        return address & 0xFFFF
+
+    def normalise_value(self, value): #same as before but with the value given
+        if not isinstance(value, int):
+            raise TypeError("Value must be an integer")
+        return value & 0xFF
+
+    def read(self, address): #read data from given address
+        address = self.normalise_address(address)
+        for device in self.devices:
+            if device.contains(address):
+                value = device.read(address)
+                return self.normalise_value(value)
+        if self.RAM_START <= address <= self.RAM_END:
+            return self.RAM[address - self.RAM_START]
+        if self.ROM_START <= address <= self.ROM_END:
+            return self.ROM[address - self.ROM_START]
+        return 0x00
+
+    def write(self, address, value): #write to the RAM
+        address = self.normalise_address(address)
+        value = self.normalise_value(value)
+        for device in self.devices:
+            if device.contains(address):
+                device.write(address, value)
+                return
+        if self.RAM_START <= address <= self.RAM_END:
+            self.RAM[address - self.RAM_START] = value
+            return
+        if self.ROM_START <= address <= self.ROM_END:
+            return
+
+    def read_word(self, address): #reads a 16 bit little endian value
+        address = self.normalise_address(address)
+        low = self.read(address)
+        high = self.read((address + 1) & 0xFFFF)
+        return low | (high << 8)
+
+    def write_word(self, address, value): #writes 16 bits as a little endian word
+        address = self.normalise_address(address)
+        value &= 0xFFFF
+        self.write(address, value & 0xFF)
+        self.write((address + 1) & 0xFFFF, (value >> 8) & 0xFF)
+
+    def clear_RAM(self, value=0x00): #gets rid of everythiing in the RAM
+        value = self.normalise_value(value)
+        for index in range(len(self.RAM)):
+            self.RAM[index] = value
+
+    def load_RAM(self, start_address, data): #loads bytes into RAM
+        start_address = self.normalise_address(start_address)
+        for offset, value in enumerate(data):
+            address = start_address + offset
+            if not self.RAM_START <= address <= self.RAM_END:
+                raise ValueError(f"RAM program exceeds RAM at ${address:04X}")
+            self.RAM[address - self.RAM_START] = value & 0xFF
+
+    def load_ROM(self, start_address, data): #loads ROM
+        start_address = self.normalise_address(start_address)
+        if start_address < self.ROM_START:
+            raise ValueError(f"ROM must be loaded at "f"${self.ROM_START:04X} or above")
+        for offset, value in enumerate(data):
+            address = start_address + offset
+            if not self.ROM_START <= address <= self.ROM_END:
+                raise ValueError(
+                    f"ROM program exceeds ROM at ${address:04X}"
+                )
+            self.ROM[address - self.ROM_START] = value & 0xFF
+
+    def load_ROM_file(self, start_address, filename): #loads a file in the ROM
+        with open(filename, "rb") as file:
+            data = file.read()
+        self.load_ROM(start_address, data)
+
+    def write_ROM_byte(self, address, value): #changes 1 byte in ROM
+        address = self.normalise_address(address)
+        value = self.normalise_value(value)
+        if not self.ROM_START <= address <= self.ROM_END:
+            raise ValueError(f"Address ${address:04X} is not in ROM")
+        self.ROM[address - self.ROM_START] = value
+
+    def set_vector(self, vector_address, target_address): #adds an address to yhe interupt vectors
+        vector_address = self.normalise_address(vector_address)
+        target_address &= 0xFFFF
+        if vector_address < self.ROM_START:
+            raise ValueError("Vectors must be stored in ROM")
+        if vector_address > 0xFFFE:
+            raise ValueError("Vector must have room for two bytes")
+        self.write_ROM_byte(vector_address, target_address & 0xFF)
+        self.write_ROM_byte(vector_address + 1, (target_address >> 8) & 0xFF)
+
+    def get_vector(self, vector_address): #reads an interupt vector
+        return self.read_word(vector_address)
+
+    def dump(self, start_address, end_address): #makes a dump of hexadecimal (look up online hard to explain in comment)
+        start_address = self.normalise_address(start_address)
+        end_address = self.normalise_address(end_address)
+        if end_address < start_address:
+            raise ValueError("End address must not be below start address")
+        lines = []
+        for row_address in range(start_address, end_address + 1, 16):
+            values = []
+            for offset in range(16):
+                address = row_address + offset
+                if address > end_address:
+                    break
+                values.append(f"{self.read(address):02X}")
+            lines.append(f"${row_address:04X}: " + " ".join(values))
+        return "\n".join(lines)
+
+    def inspect(self, address): #says what peripheral has a specified address
+        address = self.normalise_address(address)
+        for device in self.devices:
+            if device.contains(address):
+                return type(device).__name__
+        if self.RAM_START <= address <= self.RAM_END:
+            return "RAM"
+        if self.ROM_START <= address <= self.ROM_END:
+            return "ROM"
+        return "UNMAPPED"
