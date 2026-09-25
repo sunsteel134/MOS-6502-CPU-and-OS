@@ -1,6 +1,3 @@
-import secondary_memory
-RAM = secondary_memory.mems()
-
 FLAG_C = 1 << 0  #carry
 FLAG_Z = 1 << 1  #zero
 FLAG_I = 1 << 2  #interrupt
@@ -22,7 +19,8 @@ MODE_INDIRECT_Y = 8
 MODE_INDIRECT = 9
 
 class CPU:
-    def __init__(self):
+    def __init__(self, bus):
+        self.bus = bus
         self.A = 0x00
         self.X = 0x00
         self.Y = 0x00
@@ -53,78 +51,78 @@ class CPU:
             self.PC += 1
             return address
         elif mode == MODE_ZERO_PAGE: #reads 1 bytes of first 256 bytes of RAM (zero page)
-            address = RAM.memory[self.PC]
+            address = self.bus.read(self.PC)
             self.PC += 1
             return address
         elif mode == MODE_ZERO_PAGE_X: #adds the value in the X register then does that plus address and checks the zero page
-            base_zp = RAM.memory[self.PC]
+            base_zp = self.bus.read(self.PC)
             self.PC += 1
             return (base_zp + self.X) & 0xFF
         elif mode == MODE_ZERO_PAGE_Y: #same as zero page x but adds Y
-            base_zp = RAM.memory[self.PC]
+            base_zp = self.bus.read(self.PC)
             self.PC += 1
             return (base_zp + self.Y) & 0xFF
         elif mode == MODE_ABSOLUTE: #reads full 2 byte address
-            least = RAM.memory[self.PC]
-            most = RAM.memory[self.PC + 1]
+            least = self.bus.read(self.PC)
+            most = self.bus.read(self.PC + 1)
             self.PC += 2
             return (most << 8) | least
         elif mode == MODE_ABSOLUTE_X: #checks the RAM address of the value in X plus the base address given
-            least = RAM.memory[self.PC]
-            most = RAM.memory[self.PC + 1]
+            least = self.bus.read(self.PC)
+            most = self.bus.read(self.PC + 1)
             self.PC += 2
             base_address = (most << 8) | least
             return (base_address + self.X) & 0xFFFF
         elif mode == MODE_ABSOLUTE_Y: #same as absolute X but add the Y instead
-            least = RAM.memory[self.PC]
-            most = RAM.memory[self.PC + 1]
+            least = self.bus.read(self.PC)
+            most = self.bus.read(self.PC + 1)
             self.PC += 2
             base_address = (most << 8) | least
             return (base_address + self.Y) & 0xFFFF
         elif mode == MODE_INDIRECT_X: #adds X value then checks the zero page and uses that as the pointer
-            base_zp = RAM.memory[self.PC]
+            base_zp = self.bus.read(self.PC)
             self.PC += 1
             zp_address = (base_zp + self.X) & 0xFF
-            least = RAM.memory[zp_address]
-            most = RAM.memory[(zp_address + 1) & 0xFF]
+            least = self.bus.read(zp_address)
+            most = self.bus.read((zp_address + 1) & 0xFF)
             return (most << 8) | least
         elif mode == MODE_INDIRECT_Y: #looks at the zero page then does that address plus the current Y adddress
-            zp_address = RAM.memory[self.PC]
+            zp_address = self.bus.read(self.PC)
             self.PC += 1
-            least = RAM.memory[zp_address]
-            most = RAM.memory[(zp_address + 1) & 0xFF]
+            least = self.bus.read(zp_address)
+            most = self.bus.read((zp_address + 1) & 0xFF)
             base_address = (most << 8) | least
             return (base_address + self.Y) & 0xFFFF
 
     def LDA(self, mode):
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.A = val
         self.update_nz(self.A)
 
     def LDX(self, mode):
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.X = val
         self.update_nz(self.X)
 
     def LDY(self, mode):
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.Y = val
         self.update_nz(self.Y)
 
     def STA(self, mode):
         address = self.get_operand_address(mode)
-        RAM.memory[address] = self.A
+        self.bus.write(address, self.A)
 
     def STX(self, mode):
         address = self.get_operand_address(mode)
-        RAM.memory[address] = self.X
+        self.bus.write(address, self.X)
 
     def STY(self, mode):
         address = self.get_operand_address(mode)
-        RAM.memory[address] = self.Y
+        self.bus.write(address, self.Y)
 
     def TAX(self): #transfer accumulator to X register
         self.X = self.A
@@ -150,52 +148,52 @@ class CPU:
         self.SP = self.X
 
     def PHA(self): #push whats in accumulator to stack
-        RAM.memory[0x0100 + self.SP] = self.A & 0xFF
+        self.bus.write((0x0100 + self.SP), self.A & 0xFF)
         self.SP = (self.SP - 1) & 0xFF
 
     def PHP(self): #push flags to stack
         flags = self.flag | FLAG_B | FLAG_U
-        RAM.memory[0x0100 + self.SP] = flags & 0xFF
+        self.bus.write((0x0100 + self.SP), flags & 0xFF)
         self.SP = (self.SP - 1) & 0xFF
 
     def PLA(self): #pull from stack then store in accumulator
         self.SP = (self.SP + 1) & 0xFF
-        self.A = RAM.memory[0x0100 + self.SP]
+        self.A = self.bus.read(0x0100 + self.SP)
         self.update_nz(self.A)
 
     def PLP(self): #pull from stack then set flags
         self.SP = (self.SP + 1) & 0xFF
-        flags = RAM.memory[0x0100 + self.SP]
+        flags = self.bus.read(0x0100 + self.SP)
         self.flag = (flags & ~(FLAG_B | FLAG_U)) | FLAG_U
 
     def AND(self, mode): #ANd gate (pretty obvious)
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.A = self.A & val
         self.update_nz(self.A)
 
     def EOR(self, mode): #XOR gate
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.A = self.A ^ val
         self.update_nz(self.A)
 
     def IOR(self, mode): #regular OR gate
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.A = self.A | val
         self.update_nz(self.A)
 
     def BIT(self, mode): #check if anything is in the address given
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.set_flag(FLAG_Z, (self.A & val) == 0)
         self.set_flag(FLAG_V, (val & 0x40) != 0)
         self.set_flag(FLAG_N, (val & 0x80) != 0)
 
     def ADC(self, mode): #add with a carry bit
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         carry = 1 if (self.flag & FLAG_C) else 0
         result = self.A + val + carry
         overflow = ((self.A ^ result) & (val ^ result) & 0x80) != 0
@@ -205,7 +203,7 @@ class CPU:
 
     def SBC(self, mode): #subtract with a carry bit
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         inv = val ^0xFF
         carry = 1 if (self.flag & FLAG_C) else 0
         result = self.A + inv + carry
@@ -216,30 +214,30 @@ class CPU:
 
     def CMP(self, mode): #compare the value in the accumulator and in the RAM addess
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         temp = self.A - val
         self.set_flag(FLAG_C, self.A >= val)
         self.update_nz(temp & 0xFF)
 
     def CPX(self, mode): #compare the value in the X register and in the RAM addess
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         temp = self.X - val
         self.set_flag(FLAG_C, self.X >= val)
         self.update_nz(temp & 0xFF)
 
     def CPY(self, mode): #compare the value in the Y register and in the RAM addess
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         temp = self.Y - val
         self.set_flag(FLAG_C, self.Y >= val)
         self.update_nz(temp & 0xFF)
 
     def INC(self, mode): #increase value by 1
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         val = (val + 1) & 0xFF
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
 
     def INX(self): #increase value in X by 1
@@ -252,9 +250,9 @@ class CPU:
 
     def DEC(self, mode): #all same things as before but decreases by 1
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         val = (val - 1) & 0xFF
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
 
     def DEX(self):
@@ -267,10 +265,10 @@ class CPU:
 
     def ASL(self, mode): #arithmetic left shift
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.set_flag(FLAG_C, (val & 0x80) != 0)
         val = (val << 1) & 0xFF
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
     def ASL_Acc(self): #does a shift on the accumulator
         self.set_flag(FLAG_C, (self.A & 0x80) != 0)
@@ -279,10 +277,10 @@ class CPU:
 
     def LSR(self, mode): #logical right shift
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         self.set_flag(FLAG_C, (val & 0x01) != 0)
         val = val >> 1
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
     def LSR_Acc(self): #does the shift to accumulator (same for all with _acc at end)
         self.set_flag(FLAG_C, (self.A & 0x01) != 0)
@@ -291,11 +289,11 @@ class CPU:
 
     def ROL(self, mode): #cyclical shift to left
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         carry = 1 if (self.flag & FLAG_C) else 0
         self.set_flag(FLAG_C, (val & 0x80) != 0)
         val = ((val << 1) | carry) & 0xFF
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
     def ROL_Acc(self):
         carry = 1 if (self.flag & FLAG_C) else 0
@@ -305,11 +303,11 @@ class CPU:
 
     def ROR(self, mode): #cyclical shift to right
         address = self.get_operand_address(mode)
-        val = RAM.memory[address]
+        val = self.bus.read(address)
         carry = 1 if (self.flag & FLAG_C) else 0
         self.set_flag(FLAG_C, (val & 0x01) != 0)
         val = ((val >> 1) | carry) & 0xFF
-        RAM.memory[address] = val
+        self.bus.write(address, val)
         self.update_nz(val)
     def ROR_Acc(self):
         carry = 1 if (self.flag & FLAG_C) else 0
@@ -322,33 +320,32 @@ class CPU:
         if mode == MODE_ABSOLUTE:
             self.PC = address
         elif mode == MODE_INDIRECT:
-            low = RAM.memory[address]
+            low = self.bus.read(address)
             if (address & 0x00FF) == 0x00FF:
-                high = RAM.memory[address & 0xFF00]
+                high = self.bus.read(address & 0xFF00)
             else:
-                high = RAM.memory[(address + 1) & 0xFFFF]
-
+                high = self.bus.read((address + 1) & 0xFFFF)
             self.PC = (high << 8) | low
 
     def JSR(self, mode): #like branch in LMC but its where it will come back to after the code is done
         target_address = self.get_operand_address(mode)
         return_address = self.PC - 1
-        RAM.memory[0x0100 + self.SP] = (return_address >> 8) & 0xFF
+        self.bus.write((0x0100 + self.SP), (return_address >> 8) & 0xFF)
         self.SP = (self.SP - 1) & 0xFF
-        RAM.memory[0x0100 + self.SP] = return_address & 0xFF
+        self.bus.write((0x0100 + self.SP), return_address & 0xFF)
         self.SP = (self.SP - 1) & 0xFF
         self.PC = target_address
 
     def RTS(self): #tells the CPU to go back to where it said JSR
         self.SP = (self.SP + 1) & 0xFF
-        least = RAM.memory[0x0100 + self.SP]
+        least = self.bus.read(0x0100 + self.SP)
         self.SP = (self.SP + 1) & 0xFF
-        most = RAM.memory[0x0100 + self.SP]
+        most = self.bus.read(0x0100 + self.SP)
         return_address = (most << 8) | least
         self.PC = return_address + 1
 
     def BCS(self): #branch if the carry flag is set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if self.flag & FLAG_C:
             if offset & 0x80:
@@ -356,7 +353,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BCC(self): #branch if the carry flag is not set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if not (self.flag & FLAG_C):
             if offset & 0x80:
@@ -364,7 +361,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BEQ(self): #branch if the zero flag is set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if self.flag & FLAG_Z:
             if offset & 0x80:
@@ -372,7 +369,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BNE(self): #branch if the zero flag is not set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if not (self.flag & FLAG_Z):
             if offset & 0x80:
@@ -380,7 +377,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BMI(self): #branch if the negative flag is set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if self.flag & FLAG_N:
             if offset & 0x80:
@@ -388,7 +385,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BPL(self): #branch if the negative flag is not set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if not (self.flag & FLAG_N):
             if offset & 0x80:
@@ -396,7 +393,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BVS(self): #branch if the overflow flag is set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if self.flag & FLAG_V:
             if offset & 0x80:
@@ -404,7 +401,7 @@ class CPU:
             self.PC = (self.PC + offset) & 0xFFFF
 
     def BVC(self): #branch if the overflow flag is not set
-        offset = RAM.memory[self.PC]
+        offset = self.bus.read(self.PC)
         self.PC += 1
         if not (self.flag & FLAG_V):
             if offset & 0x80:
@@ -435,15 +432,15 @@ class CPU:
     def BRK(self): #cause an interupt
         return_addr = (self.PC + 1) & 0xFFFF
         self.SP = (self.SP - 1) & 0xFF
-        RAM.memory[0x0100 + self.SP] = (return_addr >> 8) & 0xFF
+        self.bus.write((0x0100 + self.SP), (return_addr >> 8) & 0xFF)
         self.SP = (self.SP - 1) & 0xFF
-        RAM.memory[0x0100 + self.SP] = return_addr & 0xFF
+        self.bus.write((0x0100 + self.SP), return_addr & 0xFF)
         flags = self.flag | FLAG_B | FLAG_U
         self.SP = (self.SP - 1) & 0xFF
-        RAM.memory[0x0100 + self.SP] = flags & 0xFF
+        self.bus.write((0x0100 + self.SP), flags & 0xFF)
         self.set_flag(FLAG_I, True)
-        low = RAM.memory[0xFFFE]
-        high = RAM.memory[0xFFFF]
+        low = self.bus.read(0xFFFE)
+        high = self.bus.read(0xFFFF)
         self.PC = (high << 8) | low
 
     def NOP(self): #literally just pass
@@ -451,16 +448,16 @@ class CPU:
 
     def RTI(self): #come back from an interupt
         self.SP = (self.SP + 1) & 0xFF
-        flags = RAM.memory[0x0100 + self.SP]
+        flags = self.bus.read(0x0100 + self.SP)
         self.flag = (flags & ~(FLAG_B | FLAG_U)) | FLAG_U
         self.SP = (self.SP + 1) & 0xFF
-        least = RAM.memory[0x0100 + self.SP]
+        least = self.bus.read(0x0100 + self.SP)
         self.SP = (self.SP + 1) & 0xFF
-        most = RAM.memory[0x0100 + self.SP]
+        most = self.bus.read(0x0100 + self.SP)
         self.PC = (most << 8) | least
 
     def tick(self):
-        opcode = RAM.memory[self.PC]
+        opcode = self.bus.read(self.PC)
         self.PC = (self.PC + 1) & 0xFFFF
         if opcode == 0xA9:
             self.LDA(MODE_IMMEDIATE)
@@ -769,22 +766,3 @@ class CPU:
                 f"Unsupported opcode ${opcode:02X} at "
                 f"${(self.PC - 1) & 0xFFFF:04X}"
             )
-
-cpu = CPU()
-
-RAM.memory[0x1000] = 0xA9
-RAM.memory[0x1001] = 0x12
-
-RAM.memory[0x1002] = 0xA2
-RAM.memory[0x1003] = 0x10
-
-RAM.memory[0x1004] = 0xA0
-RAM.memory[0x1005] = 0x08
-
-cpu.tick()
-cpu.tick()
-cpu.tick()
-if __name__ == "__main__":
-    print(cpu.A)
-    print(cpu.X)
-    print(cpu.Y)
