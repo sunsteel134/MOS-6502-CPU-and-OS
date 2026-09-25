@@ -323,8 +323,6 @@ class CPU:
             self.PC = address
         elif mode == MODE_INDIRECT:
             low = RAM.memory[address]
-
-            # NMOS 6502 page-boundary bug:
             if (address & 0x00FF) == 0x00FF:
                 high = RAM.memory[address & 0xFF00]
             else:
