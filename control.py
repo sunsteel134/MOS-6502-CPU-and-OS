@@ -126,23 +126,49 @@ class CPU:
         address = self.get_operand_address(mode)
         RAM.memory[address] = self.Y
 
-    def TAX(self):
+    def TAX(self): #transfer accumulator to X register
         self.X = self.A
         self.update_nz(self.X)
 
-    def TAY(self):
+    def TAY(self): #transfer accumulator to Y register
         self.Y = self.A
         self.update_nz(self.Y)
 
-    def TXA(self):
+    def TXA(self): #transfer X register to accumulator
         self.A = self.X
         self.update_nz(self.A)
 
-    def TYA(self):
+    def TYA(self): #transfer Y register to accumulator
         self.A = self.Y
         self.update_nz(self.A)
 
-    def AND(self, mode):
+    def TSX(self): #sets the X gegister to the value in the stack pointer
+        self.X = self.SP
+        self.update_nz(self.X)
+
+    def TXS(self): #sets the value of the stack pointer to the value in the X register
+        self.SP = self.X
+
+    def PHA(self): #push whats in accumulator to stack
+        RAM.memory[0x0100 + self.SP] = self.A & 0xFF
+        self.SP = (self.SP - 1) & 0xFF
+
+    def PHP(self): #push flags to stack
+        flags = self.flag | FLAG_B | FLAG_U
+        RAM.memory[0x0100 + self.SP] = flags & 0xFF
+        self.SP = (self.SP - 1) & 0xFF
+
+    def PLA(self): #pull from stack then store in accumulator
+        self.SP = (self.SP + 1) & 0xFF
+        self.A = RAM.memory[0x0100 + self.SP]
+        self.update_nz(self.A)
+
+    def PLP(self): #pull from stack then set flags
+        self.SP = (self.SP + 1) & 0xFF
+        flags = RAM.memory[0x0100 + self.SP]
+        self.flag = (flags & ~(FLAG_B | FLAG_U)) | FLAG_U
+
+    def AND(self, mode): #ANd gate (pretty obvious)
         address = self.get_operand_address(mode)
         val = RAM.memory[address]
         self.A = self.A & val
@@ -192,30 +218,133 @@ class CPU:
     def CMP(self, mode): #compare the value in the accumulator and in the RAM addess
         address = self.get_operand_address(mode)
         val = RAM.memory[address]
-        if val == self.A:
-            self.update_nz(self.A)
-        elif
+        temp = self.A - val
+        self.set_flag(FLAG_C, self.A >= val)
+        self.update_nz(temp & 0xFF)
+
+    def CPX(self, mode): #compare the value in the X register and in the RAM addess
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        temp = self.X - val
+        self.set_flag(FLAG_C, self.X >= val)
+        self.update_nz(temp & 0xFF)
+
+    def CPY(self, mode): #compare the value in the Y register and in the RAM addess
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        temp = self.Y - val
+        self.set_flag(FLAG_C, self.Y >= val)
+        self.update_nz(temp & 0xFF)
+
+    def INC(self, mode): #increase value by 1
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        val = (val + 1) & 0xFF
+        RAM.memory[address] = val
+        self.update_nz(val)
+
+    def INX(self): #increase value in X by 1
+        self.X = (self.X + 1) & 0xFF
+        self.update_nz(self.X)
+
+    def INY(self): #same as X but with Y register
+        self.Y = (self.Y + 1) & 0xFF
+        self.update_nz(self.Y)
+
+    def DEC(self, mode): #all same things as before but decreases by 1
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        val = (val - 1) & 0xFF
+        RAM.memory[address] = val
+        self.update_nz(val)
+
+    def DEX(self):
+        self.X = (self.X - 1) & 0xFF
+        self.update_nz(self.X)
+
+    def DEY(self):
+        self.Y = (self.Y - 1) & 0xFF
+        self.update_nz(self.Y)
+
+    def ASL(self, mode): #arithmetic left shift
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        self.set_flag(FLAG_C, (val & 0x80) != 0)
+        val = (val << 1) & 0xFF
+        RAM.memory[address] = val
+        self.update_nz(val)
+    def ASL_Acc(self): #does a shift on the accumulator
+        self.set_flag(FLAG_C, (self.A & 0x80) != 0)
+        self.A = (self.A << 1) & 0xFF
+        self.update_nz(self.A)
+
+    def LSR(self, mode): #logical right shift
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        self.set_flag(FLAG_C, (val & 0x01) != 0)
+        val = val >> 1
+        RAM.memory[address] = val
+        self.update_nz(val)
+    def LSR_Acc(self): #does the shift to accumulator (same for all with _acc at end)
+        self.set_flag(FLAG_C, (self.A & 0x01) != 0)
+        self.A = self.A >> 1
+        self.update_nz(self.A)
+
+    def ROL(self, mode): #cyclical shift to left
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        carry = 1 if (self.flag & FLAG_C) else 0
+        self.set_flag(FLAG_C, (val & 0x80) != 0)
+        val = ((val << 1) | carry) & 0xFF
+        RAM.memory[address] = val
+        self.update_nz(val)
+    def ROL_Acc(self):
+        carry = 1 if (self.flag & FLAG_C) else 0
+        self.set_flag(FLAG_C, (self.A & 0x80) != 0)
+        self.A = ((self.A << 1) | carry) & 0xFF
+        self.update_nz(self.A)
+
+    def ROR(self, mode): #cyclical shift to right
+        address = self.get_operand_address(mode)
+        val = RAM.memory[address]
+        carry = 1 if (self.flag & FLAG_C) else 0
+        self.set_flag(FLAG_C, (val & 0x80) != 0)
+        val = ((val >> 1) | carry) & 0xFF
+        RAM.memory[address] = val
+        self.update_nz(val)
+    def ROR_Acc(self):
+        carry = 1 if (self.flag & FLAG_C) else 0
+        self.set_flag(FLAG_C, (self.A & 0x80) != 0)
+        self.A = ((self.A >> 1) | carry) & 0xFF
+        self.update_nz(self.A)
+
+    def JMP(self, mode): #set PC to the value in the address given
+        address = self.get_operand_address(mode)
+        if mode == MODE_ABSOLUTE:
+            self.PC = address
+        else:
+            least = RAM.memory[address]
+            if (address & 0xFF) == 0xFF:
+                most = RAM.memory[address & 0xFF00]
+            else:
+                most = RAM.memory[address + 1]
+            self.PC = (most << 8) | least
 
     def tick(self):
         command = RAM.memory[self.PC]
+        self.PC += 1
         if command == 0xA9:
             self.LDA(0)
-            self.PC += 2
         if command == 0xA2:
             self.LDX(0)
-            self.PC += 2
         if command == 0xA0:
             self.LDY(0)
-            self.PC += 2
         if command == 0x8D:
             self.STA(2)
-            self.PC += 3
         if command == 0x8E:
             self.STX(2)
-            self.PC += 3
         if command == 0x8C:
             self.STY(2)
-            self.PC += 3
 
 cpu = CPU()
 
