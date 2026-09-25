@@ -19,6 +19,7 @@ MODE_ABSOLUTE_X = 5
 MODE_ABSOLUTE_Y = 6
 MODE_INDIRECT_X = 7
 MODE_INDIRECT_Y = 8
+MODE_INDIRECT = 9
 
 class CPU:
     def __init__(self):
@@ -188,10 +189,9 @@ class CPU:
     def BIT(self, mode): #check if anything is in the address given
         address = self.get_operand_address(mode)
         val = RAM.memory[address]
-        temp = self.A & val
-        overflow_bit6 = (val & 0x40) != 0
-        self.update_nvz(self.A, overflow_bit6)
-        self.set_flag(FLAG_Z, temp == 0)
+        self.set_flag(FLAG_Z, (self.A & val) == 0)
+        self.set_flag(FLAG_V, (val & 0x40) != 0)
+        self.set_flag(FLAG_N, (val & 0x80) != 0)
 
     def ADC(self, mode): #add with a carry bit
         address = self.get_operand_address(mode)
@@ -307,13 +307,13 @@ class CPU:
         address = self.get_operand_address(mode)
         val = RAM.memory[address]
         carry = 1 if (self.flag & FLAG_C) else 0
-        self.set_flag(FLAG_C, (val & 0x80) != 0)
+        self.set_flag(FLAG_C, (val & 0x01) != 0)
         val = ((val >> 1) | carry) & 0xFF
         RAM.memory[address] = val
         self.update_nz(val)
     def ROR_Acc(self):
         carry = 1 if (self.flag & FLAG_C) else 0
-        self.set_flag(FLAG_C, (self.A & 0x80) != 0)
+        self.set_flag(FLAG_C, (self.A & 0x01) != 0)
         self.A = ((self.A >> 1) | carry) & 0xFF
         self.update_nz(self.A)
 
@@ -321,13 +321,16 @@ class CPU:
         address = self.get_operand_address(mode)
         if mode == MODE_ABSOLUTE:
             self.PC = address
-        else:
-            least = RAM.memory[address]
-            if (address & 0xFF) == 0xFF:
-                most = RAM.memory[address & 0xFF00]
+        elif mode == MODE_INDIRECT:
+            low = RAM.memory[address]
+
+            # NMOS 6502 page-boundary bug:
+            if (address & 0x00FF) == 0x00FF:
+                high = RAM.memory[address & 0xFF00]
             else:
-                most = RAM.memory[address + 1]
-            self.PC = (most << 8) | least
+                high = RAM.memory[(address + 1) & 0xFFFF]
+
+            self.PC = (high << 8) | low
 
     def JSR(self, mode): #like branch in LMC but its where it will come back to after the code is done
         target_address = self.get_operand_address(mode)
@@ -459,20 +462,315 @@ class CPU:
         self.PC = (most << 8) | least
 
     def tick(self):
-        command = RAM.memory[self.PC]
-        self.PC += 1
-        if command == 0xA9:
-            self.LDA(0)
-        if command == 0xA2:
-            self.LDX(0)
-        if command == 0xA0:
-            self.LDY(0)
-        if command == 0x8D:
-            self.STA(2)
-        if command == 0x8E:
-            self.STX(2)
-        if command == 0x8C:
-            self.STY(2)
+        opcode = RAM.memory[self.PC]
+        self.PC = (self.PC + 1) & 0xFFFF
+        if opcode == 0xA9:
+            self.LDA(MODE_IMMEDIATE)
+        elif opcode == 0xA5:
+            self.LDA(MODE_ZERO_PAGE)
+        elif opcode == 0xB5:
+            self.LDA(MODE_ZERO_PAGE_X)
+        elif opcode == 0xAD:
+            self.LDA(MODE_ABSOLUTE)
+        elif opcode == 0xBD:
+            self.LDA(MODE_ABSOLUTE_X)
+        elif opcode == 0xB9:
+            self.LDA(MODE_ABSOLUTE_Y)
+        elif opcode == 0xA1:
+            self.LDA(MODE_INDIRECT_X)
+        elif opcode == 0xB1:
+            self.LDA(MODE_INDIRECT_Y)
+        elif opcode == 0xA2:
+            self.LDX(MODE_IMMEDIATE)
+        elif opcode == 0xA6:
+            self.LDX(MODE_ZERO_PAGE)
+        elif opcode == 0xB6:
+            self.LDX(MODE_ZERO_PAGE_Y)
+        elif opcode == 0xAE:
+            self.LDX(MODE_ABSOLUTE)
+        elif opcode == 0xBE:
+            self.LDX(MODE_ABSOLUTE_Y)
+        elif opcode == 0xA0:
+            self.LDY(MODE_IMMEDIATE)
+        elif opcode == 0xA4:
+            self.LDY(MODE_ZERO_PAGE)
+        elif opcode == 0xB4:
+            self.LDY(MODE_ZERO_PAGE_X)
+        elif opcode == 0xAC:
+            self.LDY(MODE_ABSOLUTE)
+        elif opcode == 0xBC:
+            self.LDY(MODE_ABSOLUTE_X)
+        elif opcode == 0x85:
+            self.STA(MODE_ZERO_PAGE)
+        elif opcode == 0x95:
+            self.STA(MODE_ZERO_PAGE_X)
+        elif opcode == 0x8D:
+            self.STA(MODE_ABSOLUTE)
+        elif opcode == 0x9D:
+            self.STA(MODE_ABSOLUTE_X)
+        elif opcode == 0x99:
+            self.STA(MODE_ABSOLUTE_Y)
+        elif opcode == 0x81:
+            self.STA(MODE_INDIRECT_X)
+        elif opcode == 0x91:
+            self.STA(MODE_INDIRECT_Y)
+        elif opcode == 0x86:
+            self.STX(MODE_ZERO_PAGE)
+        elif opcode == 0x96:
+            self.STX(MODE_ZERO_PAGE_Y)
+        elif opcode == 0x8E:
+            self.STX(MODE_ABSOLUTE)
+        elif opcode == 0x84:
+            self.STY(MODE_ZERO_PAGE)
+        elif opcode == 0x94:
+            self.STY(MODE_ZERO_PAGE_X)
+        elif opcode == 0x8C:
+            self.STY(MODE_ABSOLUTE)
+        elif opcode == 0xAA:
+            self.TAX()
+        elif opcode == 0xA8:
+            self.TAY()
+        elif opcode == 0x8A:
+            self.TXA()
+        elif opcode == 0x98:
+            self.TYA()
+        elif opcode == 0xBA:
+            self.TSX()
+        elif opcode == 0x9A:
+            self.TXS()
+        elif opcode == 0x48:
+            self.PHA()
+        elif opcode == 0x08:
+            self.PHP()
+        elif opcode == 0x68:
+            self.PLA()
+        elif opcode == 0x28:
+            self.PLP()
+        elif opcode == 0x29:
+            self.AND(MODE_IMMEDIATE)
+        elif opcode == 0x25:
+            self.AND(MODE_ZERO_PAGE)
+        elif opcode == 0x35:
+            self.AND(MODE_ZERO_PAGE_X)
+        elif opcode == 0x2D:
+            self.AND(MODE_ABSOLUTE)
+        elif opcode == 0x3D:
+            self.AND(MODE_ABSOLUTE_X)
+        elif opcode == 0x39:
+            self.AND(MODE_ABSOLUTE_Y)
+        elif opcode == 0x21:
+            self.AND(MODE_INDIRECT_X)
+        elif opcode == 0x31:
+            self.AND(MODE_INDIRECT_Y)
+        elif opcode == 0x49:
+            self.EOR(MODE_IMMEDIATE)
+        elif opcode == 0x45:
+            self.EOR(MODE_ZERO_PAGE)
+        elif opcode == 0x55:
+            self.EOR(MODE_ZERO_PAGE_X)
+        elif opcode == 0x4D:
+            self.EOR(MODE_ABSOLUTE)
+        elif opcode == 0x5D:
+            self.EOR(MODE_ABSOLUTE_X)
+        elif opcode == 0x59:
+            self.EOR(MODE_ABSOLUTE_Y)
+        elif opcode == 0x41:
+            self.EOR(MODE_INDIRECT_X)
+        elif opcode == 0x51:
+            self.EOR(MODE_INDIRECT_Y)
+        elif opcode == 0x09:
+            self.IOR(MODE_IMMEDIATE)
+        elif opcode == 0x05:
+            self.IOR(MODE_ZERO_PAGE)
+        elif opcode == 0x15:
+            self.IOR(MODE_ZERO_PAGE_X)
+        elif opcode == 0x0D:
+            self.IOR(MODE_ABSOLUTE)
+        elif opcode == 0x1D:
+            self.IOR(MODE_ABSOLUTE_X)
+        elif opcode == 0x19:
+            self.IOR(MODE_ABSOLUTE_Y)
+        elif opcode == 0x01:
+            self.IOR(MODE_INDIRECT_X)
+        elif opcode == 0x11:
+            self.IOR(MODE_INDIRECT_Y)
+        elif opcode == 0x24:
+            self.BIT(MODE_ZERO_PAGE)
+        elif opcode == 0x2C:
+            self.BIT(MODE_ABSOLUTE)
+        elif opcode == 0x69:
+            self.ADC(MODE_IMMEDIATE)
+        elif opcode == 0x65:
+            self.ADC(MODE_ZERO_PAGE)
+        elif opcode == 0x75:
+            self.ADC(MODE_ZERO_PAGE_X)
+        elif opcode == 0x6D:
+            self.ADC(MODE_ABSOLUTE)
+        elif opcode == 0x7D:
+            self.ADC(MODE_ABSOLUTE_X)
+        elif opcode == 0x79:
+            self.ADC(MODE_ABSOLUTE_Y)
+        elif opcode == 0x61:
+            self.ADC(MODE_INDIRECT_X)
+        elif opcode == 0x71:
+            self.ADC(MODE_INDIRECT_Y)
+        elif opcode == 0xE9:
+            self.SBC(MODE_IMMEDIATE)
+        elif opcode == 0xE5:
+            self.SBC(MODE_ZERO_PAGE)
+        elif opcode == 0xF5:
+            self.SBC(MODE_ZERO_PAGE_X)
+        elif opcode == 0xED:
+            self.SBC(MODE_ABSOLUTE)
+        elif opcode == 0xFD:
+            self.SBC(MODE_ABSOLUTE_X)
+        elif opcode == 0xF9:
+            self.SBC(MODE_ABSOLUTE_Y)
+        elif opcode == 0xE1:
+            self.SBC(MODE_INDIRECT_X)
+        elif opcode == 0xF1:
+            self.SBC(MODE_INDIRECT_Y)
+        elif opcode == 0xC9:
+            self.CMP(MODE_IMMEDIATE)
+        elif opcode == 0xC5:
+            self.CMP(MODE_ZERO_PAGE)
+        elif opcode == 0xD5:
+            self.CMP(MODE_ZERO_PAGE_X)
+        elif opcode == 0xCD:
+            self.CMP(MODE_ABSOLUTE)
+        elif opcode == 0xDD:
+            self.CMP(MODE_ABSOLUTE_X)
+        elif opcode == 0xD9:
+            self.CMP(MODE_ABSOLUTE_Y)
+        elif opcode == 0xC1:
+            self.CMP(MODE_INDIRECT_X)
+        elif opcode == 0xD1:
+            self.CMP(MODE_INDIRECT_Y)
+        elif opcode == 0xE0:
+            self.CPX(MODE_IMMEDIATE)
+        elif opcode == 0xE4:
+            self.CPX(MODE_ZERO_PAGE)
+        elif opcode == 0xEC:
+            self.CPX(MODE_ABSOLUTE)
+        elif opcode == 0xC0:
+            self.CPY(MODE_IMMEDIATE)
+        elif opcode == 0xC4:
+            self.CPY(MODE_ZERO_PAGE)
+        elif opcode == 0xCC:
+            self.CPY(MODE_ABSOLUTE)
+        elif opcode == 0xE6:
+            self.INC(MODE_ZERO_PAGE)
+        elif opcode == 0xF6:
+            self.INC(MODE_ZERO_PAGE_X)
+        elif opcode == 0xEE:
+            self.INC(MODE_ABSOLUTE)
+        elif opcode == 0xFE:
+            self.INC(MODE_ABSOLUTE_X)
+        elif opcode == 0xE8:
+            self.INX()
+        elif opcode == 0xC8:
+            self.INY()
+        elif opcode == 0xC6:
+            self.DEC(MODE_ZERO_PAGE)
+        elif opcode == 0xD6:
+            self.DEC(MODE_ZERO_PAGE_X)
+        elif opcode == 0xCE:
+            self.DEC(MODE_ABSOLUTE)
+        elif opcode == 0xDE:
+            self.DEC(MODE_ABSOLUTE_X)
+        elif opcode == 0xCA:
+            self.DEX()
+        elif opcode == 0x88:
+            self.DEY()
+        elif opcode == 0x0A:
+            self.ASL_Acc()
+        elif opcode == 0x06:
+            self.ASL(MODE_ZERO_PAGE)
+        elif opcode == 0x16:
+            self.ASL(MODE_ZERO_PAGE_X)
+        elif opcode == 0x0E:
+            self.ASL(MODE_ABSOLUTE)
+        elif opcode == 0x1E:
+            self.ASL(MODE_ABSOLUTE_X)
+        elif opcode == 0x4A:
+            self.LSR_Acc()
+        elif opcode == 0x46:
+            self.LSR(MODE_ZERO_PAGE)
+        elif opcode == 0x56:
+            self.LSR(MODE_ZERO_PAGE_X)
+        elif opcode == 0x4E:
+            self.LSR(MODE_ABSOLUTE)
+        elif opcode == 0x5E:
+            self.LSR(MODE_ABSOLUTE_X)
+        elif opcode == 0x2A:
+            self.ROL_Acc()
+        elif opcode == 0x26:
+            self.ROL(MODE_ZERO_PAGE)
+        elif opcode == 0x36:
+            self.ROL(MODE_ZERO_PAGE_X)
+        elif opcode == 0x2E:
+            self.ROL(MODE_ABSOLUTE)
+        elif opcode == 0x3E:
+            self.ROL(MODE_ABSOLUTE_X)
+        elif opcode == 0x6A:
+            self.ROR_Acc()
+        elif opcode == 0x66:
+            self.ROR(MODE_ZERO_PAGE)
+        elif opcode == 0x76:
+            self.ROR(MODE_ZERO_PAGE_X)
+        elif opcode == 0x6E:
+            self.ROR(MODE_ABSOLUTE)
+        elif opcode == 0x7E:
+            self.ROR(MODE_ABSOLUTE_X)
+        elif opcode == 0x4C:
+            self.JMP(MODE_ABSOLUTE)
+        elif opcode == 0x6C:
+            self.JMP(MODE_INDIRECT)
+        elif opcode == 0x20:
+            self.JSR(MODE_ABSOLUTE)
+        elif opcode == 0x60:
+            self.RTS()
+        elif opcode == 0x90:
+            self.BCC()
+        elif opcode == 0xB0:
+            self.BCS()
+        elif opcode == 0xF0:
+            self.BEQ()
+        elif opcode == 0x30:
+            self.BMI()
+        elif opcode == 0xD0:
+            self.BNE()
+        elif opcode == 0x10:
+            self.BPL()
+        elif opcode == 0x50:
+            self.BVC()
+        elif opcode == 0x70:
+            self.BVS()
+        elif opcode == 0x18:
+            self.CLC()
+        elif opcode == 0xD8:
+            self.CLD()
+        elif opcode == 0x58:
+            self.CLI()
+        elif opcode == 0xB8:
+            self.CLV()
+        elif opcode == 0x38:
+            self.SEC()
+        elif opcode == 0xF8:
+            self.SED()
+        elif opcode == 0x78:
+            self.SEI()
+        elif opcode == 0x00:
+            self.BRK()
+        elif opcode == 0x40:
+            self.RTI()
+        elif opcode == 0xEA:
+            self.NOP()
+        else:
+            raise ValueError(
+                f"Unsupported opcode ${opcode:02X} at "
+                f"${(self.PC - 1) & 0xFFFF:04X}"
+            )
 
 cpu = CPU()
 
