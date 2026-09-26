@@ -762,7 +762,4 @@ class CPU:
         elif opcode == 0xEA:
             self.NOP()
         else:
-            raise ValueError(
-                f"Unsupported opcode ${opcode:02X} at "
-                f"${(self.PC - 1) & 0xFFFF:04X}"
-            )
+            raise ValueError(f"Unsupported opcode ${opcode:02X} at "f"${(self.PC - 1) & 0xFFFF:04X}")
