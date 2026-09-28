@@ -92,9 +92,7 @@ class bus:
         for offset, value in enumerate(data):
             address = start_address + offset
             if not self.ROM_START <= address <= self.ROM_END:
-                raise ValueError(
-                    f"ROM program exceeds ROM at ${address:04X}"
-                )
+                raise ValueError(f"ROM program exceeds ROM at ${address:04X}")
             self.ROM[address - self.ROM_START] = value & 0xFF
 
     def load_ROM_file(self, start_address, filename): #loads a file in the ROM
