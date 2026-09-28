@@ -3,6 +3,9 @@ from busses import bus
 from clock import clock
 from reseter import reset_controller
 from uninterupter import interrupt_controller
+from devices.keyboard import keyboard
+from devices.display import text_display
+from devices.timer import timer
 
 class computer:
     def __init__(self, clock_frequency=1000000):
@@ -11,6 +14,12 @@ class computer:
         self.clock = clock(hz=clock_frequency)
         self.reset_controller = reset_controller(self.bus, self.cpu)
         self.interrupt_controller = interrupt_controller(self.bus, self.cpu)
+        self.keyboard = keyboard(base_address=0x0200)
+        self.bus.attach(self.keyboard)
+        self.text_display = text_display(base_address=0x0400, cols=40, rows=25)
+        self.bus.attach(self.text_display)
+        self.timer = timer(base_address=0x0310, clock_hz=clock_frequency)
+        self.bus.attach(self.timer)
         self.running = False
         self.halted = False
         self.cycles_executed = 0
@@ -35,6 +44,9 @@ class computer:
                 self.reset_controller.process_reset()
             self.interrupt_controller.process_interrupts()
             start_pc = self.cpu.PC
+            self.keyboard.poll()
+            if self.timer.tick(1):
+                pass
             try:
                 self.cpu.tick()
                 self.clock.tick(1)
