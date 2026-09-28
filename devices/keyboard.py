@@ -1,7 +1,7 @@
 import sys
 import select
 
-class Keyboard:
+class keyboard:
     def __init__(self, base_address=0x0200):
         self.base_address = base_address
         self.buffer = []
