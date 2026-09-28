@@ -1,4 +1,4 @@
-class Bus:
+class bus:
     ADDRESS_SPACE_SIZE = 0x10000
     MAX_ADDRESS = 0xFFFF
     RAM_START = 0x0000
