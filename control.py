@@ -45,6 +45,14 @@ class CPU:
         self.set_flag(FLAG_N, (val & 0x80) != 0)
         self.set_flag(FLAG_V, overflow)
 
+    def reset(self): #resets everything to nothing and sets the PC to 0xFFFC or 0xFFFD
+        self.A = 0x00
+        self.X = 0x00
+        self.Y = 0x00
+        self.SP = 0xFD
+        self.flag = FLAG_U | FLAG_I
+        self.PC = self.bus.read_word(0xFFFC)
+
     def get_operand_address(self, mode):
         if mode == MODE_IMMEDIATE: #byte right after instruction
             address = self.PC
@@ -79,6 +87,11 @@ class CPU:
             self.PC += 2
             base_address = (most << 8) | least
             return (base_address + self.Y) & 0xFFFF
+        elif mode == MODE_INDIRECT: #same thing as indirect X and Y but for the RAM (only used by JMP)
+            low = self.bus.read(self.PC)
+            high = self.bus.read(self.PC + 1)
+            self.PC += 2
+            return (high << 8) | low
         elif mode == MODE_INDIRECT_X: #adds X value then checks the zero page and uses that as the pointer
             base_zp = self.bus.read(self.PC)
             self.PC += 1
@@ -178,7 +191,7 @@ class CPU:
         self.A = self.A ^ val
         self.update_nz(self.A)
 
-    def IOR(self, mode): #regular OR gate
+    def ORA(self, mode): #regular OR gate
         address = self.get_operand_address(mode)
         val = self.bus.read(address)
         self.A = self.A | val
@@ -574,21 +587,21 @@ class CPU:
         elif opcode == 0x51:
             self.EOR(MODE_INDIRECT_Y)
         elif opcode == 0x09:
-            self.IOR(MODE_IMMEDIATE)
+            self.ORA(MODE_IMMEDIATE)
         elif opcode == 0x05:
-            self.IOR(MODE_ZERO_PAGE)
+            self.ORA(MODE_ZERO_PAGE)
         elif opcode == 0x15:
-            self.IOR(MODE_ZERO_PAGE_X)
+            self.ORA(MODE_ZERO_PAGE_X)
         elif opcode == 0x0D:
-            self.IOR(MODE_ABSOLUTE)
+            self.ORA(MODE_ABSOLUTE)
         elif opcode == 0x1D:
-            self.IOR(MODE_ABSOLUTE_X)
+            self.ORA(MODE_ABSOLUTE_X)
         elif opcode == 0x19:
-            self.IOR(MODE_ABSOLUTE_Y)
+            self.ORA(MODE_ABSOLUTE_Y)
         elif opcode == 0x01:
-            self.IOR(MODE_INDIRECT_X)
+            self.ORA(MODE_INDIRECT_X)
         elif opcode == 0x11:
-            self.IOR(MODE_INDIRECT_Y)
+            self.ORA(MODE_INDIRECT_Y)
         elif opcode == 0x24:
             self.BIT(MODE_ZERO_PAGE)
         elif opcode == 0x2C:
