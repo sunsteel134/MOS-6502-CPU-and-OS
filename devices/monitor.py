@@ -8,6 +8,8 @@ class monitor:
         self.rows = height_chars
         self.size = self.cols * self.rows
         self.vram = bytearray(self.size)
+        if hasattr(self.bus, "attach"):
+            self.bus.attach(self)
         self.root = tk.Tk()
         self.root.title("MOCOS Display Monitor")
         self.root.configure(bg="#050505")
@@ -36,6 +38,8 @@ class monitor:
                 row_ids.append(text_id)
             self.grid.append(row_ids)
         self.root.bind("<Key>", self._on_key)
+        self.canvas.bind("<Button-1>", lambda e: self.canvas.focus_set())
+        self.root.focus_force()
 
     def contains(self, address):
         return self.base_address <= address < (self.base_address + self.size)
@@ -49,9 +53,15 @@ class monitor:
         self.vram[offset] = value & 0xFF
 
     def _on_key(self, event): #writes the character you press to the RAM
-        if event.char:
+        if event.keysym == "Return":
+            key_ascii = 0x0D
+        elif event.keysym == "BackSpace":
+            key_ascii = 0x08
+        elif event.char:
             key_ascii = ord(event.char.upper())
-            self.bus.write(0x0200, key_ascii)
+        else:
+            return
+        self.bus.write(0x0200, key_ascii)
 
     def render(self): #renders things (duh)
         for row in range(self.rows):
