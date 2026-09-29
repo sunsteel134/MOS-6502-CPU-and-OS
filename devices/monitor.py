@@ -1,7 +1,7 @@
 import tkinter as tk
 
 class monitor:
-    def __init__(self, bus, base_address=0x0400, width_chars=40, height_chars=25):
+    def __init__(self, bus, on_key=None, base_address=0x0400, width_chars=40, height_chars=25):
         self.bus = bus
         self.base_address = base_address
         self.cols = width_chars
@@ -10,6 +10,7 @@ class monitor:
         self.vram = bytearray(self.size)
         if hasattr(self.bus, "attach"):
             self.bus.attach(self)
+        self.on_key = on_key
         self.root = tk.Tk()
         self.root.title("MOCOS Display Monitor")
         self.root.configure(bg="#050505")
@@ -61,7 +62,8 @@ class monitor:
             key_ascii = ord(event.char.upper())
         else:
             return
-        self.bus.write(0x0200, key_ascii)
+        if self.on_key:
+            self.on_key(key_ascii)
 
     def render(self): #renders things (duh)
         for row in range(self.rows):
