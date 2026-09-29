@@ -76,6 +76,7 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
                     return MODE_ABSOLUTE
             except ValueError:
                 return MODE_ABSOLUTE
+                
     def _parse_instruction(self, line,current_address): #pass the instruction
         parts = line.split(None, 1)
         pneumonic = parts[0].upper()
