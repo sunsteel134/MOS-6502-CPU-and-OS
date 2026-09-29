@@ -4,6 +4,7 @@ from opcodes import (
     MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y,
     MODE_INDIRECT_X, MODE_INDIRECT_Y, MODE_INDIRECT, MODE_ACCUMULATOR
 )
+
 class assembler: #outputs it in hex code must put through bus to be able to run it
     def __init__(self):
         self.symbols = {}
