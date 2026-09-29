@@ -1,16 +1,15 @@
-from opcodes import (
-    opcodes,
+from .opcodes import (opcodes,
     MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y,
     MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y,
     MODE_INDIRECT_X, MODE_INDIRECT_Y, MODE_INDIRECT, MODE_ACCUMULATOR
 )
 
-class assembler: #outputs it in hex code must put through bus to be able to run it
+class assembler:  # outputs it in hex code must put through bus to be able to run it
     def __init__(self):
         self.symbols = {}
         self.PC = 0x0100
 
-    def assemble(self, code): #does the thing
+    def assemble(self, code):  # does the thing
         lines = code.splitlines()
         machine_code = bytearray()
         current_address = self.PC
@@ -18,6 +17,25 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
         for line in lines:
             line = line.split(';')[0].strip()
             if not line:
+                continue
+            if '=' in line and not line.startswith('.'):
+                parts = line.split('=', 1)
+                symbol_name = parts[0].strip()
+                val_str = parts[1].strip()
+                if val_str.startswith('$'):
+                    val_str = '0x' + val_str[1:]
+                try:
+                    self.symbols[symbol_name] = int(val_str, 0)
+                except ValueError:
+                    raise ValueError(f"Invalid value in symbol assignment: {line}")
+                continue
+            if line.upper().startswith('.ORG'):
+                parts = line.split()
+                addr_str = parts[1].strip()
+                if addr_str.startswith('$'):
+                    addr_str = '0x' + addr_str[1:]
+                current_address = int(addr_str, 0)
+                self.PC = current_address
                 continue
             if ':' in line:
                 parts = line.split(':', 1)
@@ -33,7 +51,7 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
             machine_code.extend(out)
         return machine_code
 
-    def _get_instruction_size(self, line): #finds the size of the instruction
+    def _get_instruction_size(self, line):  # finds the size of the instruction
         parts = line.split()
         pneumonic = parts[0].upper()
         branches = ("BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS")
@@ -43,13 +61,14 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
             return 1
         operand = parts[1]
         mode = self._infer_mode(operand)
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
+                    MODE_INDIRECT_Y):
             return 2
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             return 3
         return 2
 
-    def _infer_mode(self, operand): #figures out mode coming through
+    def _infer_mode(self, operand):  # figures out mode coming through
         operand = operand.strip()
         if operand == "" or operand.upper() == "A":
             return MODE_ACCUMULATOR
@@ -63,21 +82,29 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
             else:
                 return MODE_INDIRECT
         elif ',' in operand:
-            if ',X' in operand.upper():
-                return MODE_ZERO_PAGE_X
-            elif ',Y' in operand.upper():
-                return MODE_ZERO_PAGE_Y
+            is_x = ',X' in operand.upper()
+            clean = operand.upper().replace(',X', '').replace(',Y', '').strip()
+            try:
+                val = self.symbols[clean] if clean in self.symbols else int(
+                    '0x' + clean[1:] if clean.startswith('$') else clean, 0)
+                if val <= 0xFF:
+                    return MODE_ZERO_PAGE_X if is_x else MODE_ZERO_PAGE_Y
+                else:
+                    return MODE_ABSOLUTE_X if is_x else MODE_ABSOLUTE_Y
+            except (ValueError, KeyError):
+                return MODE_ABSOLUTE_X if is_x else MODE_ABSOLUTE_Y
         else:
             try:
-                val = int(operand, 0)
+                val = self.symbols[operand] if operand in self.symbols else int(
+                    '0x' + operand[1:] if operand.startswith('$') else operand, 0)
                 if val <= 0xFF:
                     return MODE_ZERO_PAGE
                 else:
                     return MODE_ABSOLUTE
-            except ValueError:
-                return MODE_ABSOLUTE
-                
-    def _parse_instruction(self, line,current_address): #pass the instruction
+            except (ValueError, KeyError):
+                    return MODE_ABSOLUTE
+
+    def _parse_instruction(self, line, current_address):  # pass the instruction
         parts = line.split(None, 1)
         pneumonic = parts[0].upper()
         operand = parts[1].strip() if len(parts) > 1 else ""
@@ -131,7 +158,8 @@ class assembler: #outputs it in hex code must put through bus to be able to run 
             raise ValueError(f"Unsupported instruction/mode combination: {pneumonic} with mode {mode}")
         opcode = opcodes[key]
         result = [opcode]
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
+                    MODE_INDIRECT_Y):
             result.append(val & 0xFF)
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             result.append(val & 0xFF)
