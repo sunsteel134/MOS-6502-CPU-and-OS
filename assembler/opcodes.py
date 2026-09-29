@@ -10,7 +10,7 @@ MODE_INDIRECT_Y = 8
 MODE_INDIRECT = 9
 MODE_ACCUMULATOR = 10
 
-opcodes = { #all pneumonics to make the OS and kernel making easier
+opcodes = {  # all pneumonics to make the OS and kernel making easier
     ("LDA", MODE_IMMEDIATE): 0xA9,
     ("LDA", MODE_ZERO_PAGE): 0xA5,
     ("LDA", MODE_ZERO_PAGE_X): 0xB5,
@@ -24,13 +24,13 @@ opcodes = { #all pneumonics to make the OS and kernel making easier
     ("LDX", MODE_ZERO_PAGE): 0xA6,
     ("LDX", MODE_ZERO_PAGE_Y): 0xB6,
     ("LDX", MODE_ABSOLUTE): 0xAE,
-    ("LDX", MODE_INDIRECT_Y): 0xBE,
+    ("LDX", MODE_ABSOLUTE_Y): 0xBE,
 
     ("LDY", MODE_IMMEDIATE): 0xA0,
     ("LDY", MODE_ZERO_PAGE): 0xA4,
     ("LDY", MODE_ZERO_PAGE_X): 0xB4,
     ("LDY", MODE_ABSOLUTE): 0xAC,
-    ("LDY", MODE_INDIRECT_X): 0xBC,
+    ("LDY", MODE_ABSOLUTE_X): 0xBC,
 
     ("STA", MODE_ZERO_PAGE): 0x85,
     ("STA", MODE_ZERO_PAGE_X): 0x95,
@@ -41,8 +41,8 @@ opcodes = { #all pneumonics to make the OS and kernel making easier
     ("STA", MODE_INDIRECT_Y): 0x91,
 
     ("STX", MODE_ZERO_PAGE): 0x86,
-    ("STX", MODE_ZERO_PAGE_Y): 0x8E,
-    ("STX", MODE_ABSOLUTE): 0x84,
+    ("STX", MODE_ZERO_PAGE_Y): 0x96,
+    ("STX", MODE_ABSOLUTE): 0x8E,
 
     ("STY", MODE_ZERO_PAGE): 0x84,
     ("STY", MODE_ZERO_PAGE_X): 0x94,
@@ -112,7 +112,7 @@ opcodes = { #all pneumonics to make the OS and kernel making easier
     ("CMP", MODE_ZERO_PAGE): 0xC5,
     ("CMP", MODE_ZERO_PAGE_X): 0xD5,
     ("CMP", MODE_ABSOLUTE): 0xCD,
-    ("MPC", MODE_ABSOLUTE_X): 0xDD,
+    ("CMP", MODE_ABSOLUTE_X): 0xDD,
     ("CMP", MODE_ABSOLUTE_Y): 0xD9,
     ("CMP", MODE_INDIRECT_X): 0xC1,
     ("CMP", MODE_INDIRECT_Y): 0xD1,
@@ -178,7 +178,7 @@ opcodes = { #all pneumonics to make the OS and kernel making easier
     ("BNE"): 0xD0,
     ("BPL"): 0x10,
     ("BVC"): 0x50,
-    ("BVS"): 0x80,
+    ("BVS"): 0x70,
 
     ("CLC"): 0x18,
     ("CLD"): 0xD8,
