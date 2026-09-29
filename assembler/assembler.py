@@ -74,11 +74,12 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
             return MODE_ACCUMULATOR
         elif operand.startswith('#'):
             return MODE_IMMEDIATE
-        elif operand.startswith('(') and operand.endswith(')'):
-            if ',X' in operand.upper():
-                return MODE_INDIRECT_X
-            elif ',Y' in operand.upper():
+        elif operand.startswith('('):
+            up = operand.upper().replace(' ', '')
+            if up.endswith('),Y') or up.endswith(',Y)'):
                 return MODE_INDIRECT_Y
+            elif up.endswith(',X)'):
+                return MODE_INDIRECT_X
             else:
                 return MODE_INDIRECT
         elif ',' in operand:
@@ -126,7 +127,7 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
                 raise ValueError(f"Unknown branch opcode: {pneumonic}")
             return [opcodes[pneumonic], offset & 0xFF]
         if not operand or operand.upper() == "A":
-            if pneumonic in ("ASL", "LSR", "ROL", "ROR") and operand.upper == "A":
+            if pneumonic in ("ASL", "LSR", "ROL", "ROR"):
                 key = (pneumonic, MODE_ACCUMULATOR)
             else:
                 key = pneumonic
@@ -139,7 +140,7 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
         if clean_op.startswith('#'):
             clean_op = clean_op[1:]
         if clean_op.startswith('('):
-            clean_op = clean_op.strip('()')
+            clean_op = clean_op.upper().replace(' ', '').replace('),Y', '').replace(',X)', '').strip('()')
         if ',X' in clean_op.upper():
             clean_op = clean_op.upper().replace(',X', '').strip()
         elif ',Y' in clean_op.upper():
@@ -158,8 +159,7 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
             raise ValueError(f"Unsupported instruction/mode combination: {pneumonic} with mode {mode}")
         opcode = opcodes[key]
         result = [opcode]
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
-                    MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
             result.append(val & 0xFF)
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             result.append(val & 0xFF)
