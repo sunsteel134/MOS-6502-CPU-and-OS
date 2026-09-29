@@ -10,6 +10,7 @@ def start():
     machine_code = asm.assemble(source_code)
     sys.bus.load_ROM(0x8000, machine_code)
     sys.bus.set_vector(0xFFFC, 0x8000)
+    sys.bus.set_vector(0xFFFE, asm.symbols["BRK_HANDLER"])
     sys.reset()
 
     def tick():
