@@ -6,13 +6,13 @@ DISK_BUFL   = $0322
 DISK_BUFH   = $0323
 PROG_ADDR   = $2000
 
-CUR_L       = $10 ;screen cursor pointer (16 bit)
+CUR_L       = $10
 CUR_H       = $11
-COL         = $12 ;column 0-39
-TMP         = $13 ;saved Y during putchar
-LEN         = $14 ;characters typed on this line
-CMDCH       = $15 ;first character typed on this line
-SRC_L       = $16 ;scroll copy pointers
+COL         = $12
+TMP         = $13
+LEN         = $14
+CMDCH       = $15
+SRC_L       = $16
 SRC_H       = $17
 DST_L       = $18
 DST_H       = $19
@@ -260,7 +260,7 @@ ED_BKSP:
     DEY
     LDA PROG_ADDR,Y
     CMP #$0D
-    BEQ ED_NOBACK ;cant backspace over a line break
+    BEQ ED_NOBACK
     LDA #$08
     JSR SYS_PUTCHAR
     JMP EDIT_LOOP
