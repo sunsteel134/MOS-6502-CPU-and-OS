@@ -20,6 +20,8 @@ class computer:
         self.bus.attach(self.text_display)
         self.timer = timer(base_address=0x0310, clock_hz=clock_frequency)
         self.bus.attach(self.timer)
+        self.monitor = monitor(self.bus, on_key=self.keyboard.press_key)
+        self.bus.attach(self.monitor)
         self.running = False
         self.halted = False
         self.cycles_executed = 0
