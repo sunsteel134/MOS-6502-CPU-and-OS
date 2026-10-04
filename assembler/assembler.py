@@ -1,8 +1,5 @@
-from .opcodes import (opcodes,
-    MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y,
-    MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y,
-    MODE_INDIRECT_X, MODE_INDIRECT_Y, MODE_INDIRECT, MODE_ACCUMULATOR
-)
+from .opcodes import (opcodes, MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y, MODE_INDIRECT, MODE_ACCUMULATOR)
+
 
 class assembler:  # outputs it in hex code must put through bus to be able to run it
     def __init__(self):
@@ -61,6 +58,8 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
             return 1
         operand = parts[1]
         mode = self._infer_mode(operand)
+        if mode == MODE_ACCUMULATOR:
+            return 1
         if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
                     MODE_INDIRECT_Y):
             return 2
@@ -103,7 +102,7 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
                 else:
                     return MODE_ABSOLUTE
             except (ValueError, KeyError):
-                    return MODE_ABSOLUTE
+                return MODE_ABSOLUTE
 
     def _parse_instruction(self, line, current_address):  # pass the instruction
         parts = line.split(None, 1)
@@ -159,7 +158,8 @@ class assembler:  # outputs it in hex code must put through bus to be able to ru
             raise ValueError(f"Unsupported instruction/mode combination: {pneumonic} with mode {mode}")
         opcode = opcodes[key]
         result = [opcode]
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
+                    MODE_INDIRECT_Y):
             result.append(val & 0xFF)
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             result.append(val & 0xFF)
