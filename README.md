@@ -1,2 +1,3 @@
 # MOS-6502-CPU-and-OS
-This is an MOS 6502 cpu emulated in python then a separate file coded in 6502 for an OS and then with a small game made inside said OS
+This is a small project of an emulated MOS 6502 CPU then in that CPU there is an operating system.
+To use the program first run the build_disk.py file then run the main.py then finally press 'G' then enter and enjoy
