@@ -5,17 +5,20 @@ DISK_SEC    = $0321
 DISK_BUFL   = $0322
 DISK_BUFH   = $0323
 PROG_ADDR   = $2000
+GAME_ADDR   = $2100 ;G loads disk sectors 2-5 here and runs it
 
-CUR_L       = $10
+CUR_L       = $10 ;screen cursor pointer (16 bit)
 CUR_H       = $11
-COL         = $12
-TMP         = $13
-LEN         = $14
-CMDCH       = $15
-SRC_L       = $16
+COL         = $12 ;column 0-39
+TMP         = $13 ;saved Y during putchar
+LEN         = $14 ;characters typed on this line
+CMDCH       = $15 ;first character typed on this line
+SRC_L       = $16 ;scroll copy pointers
 SRC_H       = $17
 DST_L       = $18
 DST_H       = $19
+SECN        = $1A ;sector counter for G
+PAGEH       = $1B ;load page for G
 
     .ORG $8000
 
@@ -170,7 +173,7 @@ PRINT_OK:
     JSR SYS_PUTCHAR
     RTS
 
-SHELL_PROMPT: ;always starts on a fresh line
+SHELL_PROMPT:
     LDA COL
     BEQ SP_GO
     LDA #$0D
@@ -188,13 +191,13 @@ SHELL_LOOP:
     CMP #$08
     BEQ SH_BKSP
     CMP #$20
-    BCC SHELL_LOOP ;ignore other control keys
+    BCC SHELL_LOOP
     LDX LEN
     CPX #$F0
-    BCS SHELL_LOOP ;line is full
+    BCS SHELL_LOOP
     CPX #$00
     BNE SH_KEEP
-    STA CMDCH ;remember the first character
+    STA CMDCH
 SH_KEEP:
     INC LEN
     JSR SYS_PUTCHAR
@@ -202,7 +205,7 @@ SH_KEEP:
 
 SH_BKSP:
     LDA LEN
-    BEQ SHELL_LOOP ;never delete the prompt
+    BEQ SHELL_LOOP
     DEC LEN
     LDA #$08
     JSR SYS_PUTCHAR
@@ -223,18 +226,21 @@ SH_ENTER: ;a command is one letter followed by enter: E R S or L
     BEQ CMD_SAVE
     CMP #$4C
     BEQ CMD_LOAD
+    CMP #$47
+    BEQ CMD_GAME
 SH_NONE:
     JMP SHELL_PROMPT
     ;E enter = type text into the buffer at $2000 (Esc to finish)
     ;R enter = run whatever is at $2000
     ;S enter = save $2000 to disk sector 1
     ;L enter = load disk sector 1 to $2000
+    ;G enter = load the game from disk sectors 2-5 and play it
 
 CMD_RUN:
     JSR PROG_ADDR
     JMP SHELL_PROMPT
 
-CMD_EDIT: ;buffer is 256 bytes (one disk sector)
+CMD_EDIT:
     LDY #$00
 
 EDIT_LOOP:
@@ -270,7 +276,7 @@ ED_NOBACK:
 
 EDIT_EXIT:
     LDA #$00
-    STA PROG_ADDR,Y ;end marker
+    STA PROG_ADDR,Y
 EDIT_FULL:
     JMP SHELL_PROMPT
 
@@ -296,4 +302,32 @@ CMD_LOAD:
     LDA #$01
     STA DISK_CMD
     JSR PRINT_OK
+    JMP SHELL_PROMPT
+
+CMD_GAME: ;loads sectors 2,3,4,5 to $2100-$24FF then runs $2100
+    LDA #$02
+    STA SECN
+    LDA #$21
+    STA PAGEH
+    LDA #$00
+    STA DISK_BUFL
+GM_LOOP:
+    LDA PAGEH
+    STA DISK_BUFH
+    LDA SECN
+    STA DISK_SEC
+    LDA #$01
+    STA DISK_CMD
+    INC PAGEH
+    INC SECN
+    LDA SECN
+    CMP #$06
+    BNE GM_LOOP
+    JSR GAME_ADDR
+    JSR SYS_CLEAR
+    LDA #$00
+    STA CUR_L
+    STA COL
+    LDA #$04
+    STA CUR_H
     JMP SHELL_PROMPT
