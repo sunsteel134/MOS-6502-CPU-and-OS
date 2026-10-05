@@ -1,23 +1,36 @@
 import os
 from assembler.assembler import assembler
 
-disk = "virtual_disk.bin"
-sector_size = 256
-game_sector = 2
-max = 4
-load_addr = 0x2100
+DISK_NAME = "virtual_disk.bin"
+SECTOR_SIZE = 256
+LOAD_ADDR = 0x2100
 
-asm = assembler()
-asm.PC = load_addr
-with open("snake.asm", "r") as f:
-    code = bytes(asm.assemble(f.read()))
-sectors = -(-len(code) // sector_size)
-if sectors > max:
-    raise SystemExit(f"snake is {len(code)} bytes ({sectors} sectors) but G only loads {max}")
-if not os.path.exists(disk):
-    with open(disk, "wb") as f:
-        f.write(b"\x00" * (256 * sector_size))
-with open(disk, "r+b") as f:
-    f.seek(game_sector * sector_size)
-    f.write(code + b"\x00" * (max * sector_size - len(code)))
-print(f"snake: {len(code)} bytes written to {disk} at sector {game_sector} ({sectors} sector(s) used)")
+GAMES = [
+    {"name": "snake", "file": "snake.asm", "start_sector": 2, "max_sectors": 4},
+    {"name": "pong", "file": "pong.asm", "start_sector": 6, "max_sectors": 4},
+    {"name": "rogue", "file": "rogue.asm", "start_sector": 10, "max_sectors": 6},
+]
+
+if not os.path.exists(DISK_NAME):
+    with open(DISK_NAME, "wb") as f:
+        f.write(b"\x00" * (256 * SECTOR_SIZE))
+
+with open(DISK_NAME, "r+b") as f:
+    for game in GAMES:
+        if not os.path.exists(game["file"]):
+            print(f"Skipping {game['name']}: file {game['file']} not found.")
+            continue
+        asm = assembler()
+        asm.PC = LOAD_ADDR
+        with open(game["file"], "r") as gf:
+            code = bytes(asm.assemble(gf.read()))
+        sectors_needed = -(-len(code) // SECTOR_SIZE)
+        if sectors_needed > game["max_sectors"]:
+            raise SystemExit(
+                f"Error: {game['name']} is {len(code)} bytes ({sectors_needed} sectors) "
+                f"but max allowed is {game['max_sectors']} sectors."
+            )
+        f.seek(game["start_sector"] * SECTOR_SIZE)
+        padding = b"\x00" * (game["max_sectors"] * SECTOR_SIZE - len(code))
+        f.write(code + padding)
+        print(f"Wrote {game['name']}: {len(code)} bytes at sector {game['start_sector']} ({sectors_needed} sector(s))")
