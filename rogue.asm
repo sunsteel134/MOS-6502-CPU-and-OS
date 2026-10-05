@@ -45,7 +45,10 @@ START:
     STA ROOM
     LDA #$00
     STA GOLD
+    LDA $FE
+    BNE SEED_OK
     LDA #$35
+SEED_OK:
     STA SEED
 
 LOAD:
@@ -187,12 +190,27 @@ NO_RET:
 GOLD_C:
     LDA #$20
     STA (PTR_L),Y
+    LDA TGT_X
+    CMP GOLD_X
+    BNE GOLD_IS_2
+    LDA TGT_Y
+    CMP GOLD_Y
+    BNE GOLD_IS_2
     LDA #$00
     STA GOLD_X
     STA GOLD_Y
     LDA #$02
     JSR ADD_G
     DEC G_CNT
+    JMP GOLD_MOVE
+GOLD_IS_2:
+    LDA #$00
+    STA GOLD_X2
+    STA GOLD_Y2
+    LDA #$02
+    JSR ADD_G
+    DEC G_CNT
+GOLD_MOVE:
     LDA TGT_X
     STA PX
     LDA TGT_Y
@@ -270,13 +288,13 @@ REWARD:
     CMP #$53
     BEQ R_3
     LDA #$05
-    JMP ADD_G
+    JSR ADD_G
 R_1:
     LDA #$01
-    JMP ADD_G
+    JSR ADD_G
 R_3:
     LDA #$03
-    JMP ADD_G
+    JSR ADD_G
 
 PROC_MONS:
     LDA M1_TYPE
@@ -334,6 +352,13 @@ SM_DX:
     DEC MON_X
 SM_CHK:
     LDA MON_X
+    CMP PX
+    BNE SM_NO_PLAYER
+    LDA MON_Y
+    CMP PY
+    BEQ SM_FAIL
+SM_NO_PLAYER:
+    LDA MON_X
     CMP #$01
     BCC SM_FAIL
     CMP ROOM_W
@@ -348,12 +373,6 @@ SM_CHK:
     LDY MON_X
     LDA (PTR_L),Y
     CMP #$23
-    BEQ SM_FAIL
-    LDA MON_X
-    CMP PX
-    BNE SM_OK
-    LDA MON_Y
-    CMP PY
     BEQ SM_FAIL
 SM_OK:
     LDX MON_X
@@ -468,7 +487,7 @@ SPAWN_MONS:
     JSR RAND
     AND #$03
     BEQ SM_NONE
-    CMP #$03
+    CMP #$04
     BEQ SM_NONE
     STA M_CNT
     JSR SPAWN_M1
@@ -577,16 +596,12 @@ SM2_OK:
 
 RAND:
     LDA SEED
-    BNE R_EXEC
+    BNE R_RESEED
     LDA #$A5
     STA SEED
-R_EXEC:
-    LSR A
-    BCS R_XOR
-    STA SEED
-    RTS
-R_XOR:
-    EOR #$B4
+R_RESEED:
+    LDA #$A5
+R_DONE:
     STA SEED
     RTS
 
