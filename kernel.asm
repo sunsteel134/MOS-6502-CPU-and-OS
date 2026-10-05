@@ -327,7 +327,7 @@ LOAD_PONG:
 LOAD_ROGUE:
     LDA #$0A
     STA SECN
-    LDA #$0F
+    LDA #$10
     STA END_SEC
     JMP LOAD_EXEC
 
