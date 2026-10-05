@@ -6,6 +6,8 @@ from uninterupter import interrupt_controller
 from devices.keyboard import keyboard
 from devices.display import text_display
 from devices.timer import timer
+from devices.disk import disk_controller
+from devices.monitor import monitor
 
 class computer:
     def __init__(self, clock_frequency=1000000):
@@ -20,6 +22,9 @@ class computer:
         self.bus.attach(self.text_display)
         self.timer = timer(base_address=0x0310, clock_hz=clock_frequency)
         self.bus.attach(self.timer)
+        self.disk = disk_controller(base_address=0x0320)
+        self.disk.attach_bus(self.bus)
+        self.bus.attach(self.disk)
         self.monitor = monitor(self.bus, on_key=self.keyboard.press_key)
         self.bus.attach(self.monitor)
         self.running = False
