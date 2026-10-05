@@ -5,20 +5,21 @@ DISK_SEC    = $0321
 DISK_BUFL   = $0322
 DISK_BUFH   = $0323
 PROG_ADDR   = $2000
-GAME_ADDR   = $2100 ;G loads disk sectors 2-5 here and runs it
+GAME_ADDR   = $2100
 
-CUR_L       = $10 ;screen cursor pointer (16 bit)
+CUR_L       = $10
 CUR_H       = $11
-COL         = $12 ;column 0-39
-TMP         = $13 ;saved Y during putchar
-LEN         = $14 ;characters typed on this line
-CMDCH       = $15 ;first character typed on this line
-SRC_L       = $16 ;scroll copy pointers
+COL         = $12
+TMP         = $13
+LEN         = $14
+CMDCH       = $15
+SRC_L       = $16
 SRC_H       = $17
 DST_L       = $18
 DST_H       = $19
-SECN        = $1A ;sector counter for G
-PAGEH       = $1B ;load page for G
+SECN        = $1A
+PAGEH       = $1B
+END_SEC     = $1C
 
     .ORG $8000
 
@@ -35,15 +36,14 @@ RESET:
     STA CUR_H
     JMP SHELL_PROMPT
 
-BRK_HANDLER: ;a program that hits BRK ends up back at the shell
+BRK_HANDLER:
     LDX #$FF
     TXS
     JMP SHELL_PROMPT
 
-SYS_CLEAR: ;fills the screen with spaces
+SYS_CLEAR:
     LDX #$00
     LDA #$20
-
 CLEAR_LOOP:
     STA $0400,X
     STA $0500,X
@@ -53,12 +53,12 @@ CLEAR_LOOP:
     BNE CLEAR_LOOP
     RTS
 
-SYS_GETCHAR: ;waits for a key, returns it in A
+SYS_GETCHAR:
     LDA KEYBOARD
     BEQ SYS_GETCHAR
     RTS
 
-SYS_PUTCHAR: ;prints A at the cursor. handles enter ($0D) and backspace ($08). keeps Y
+SYS_PUTCHAR:
     STY TMP
     CMP #$0D
     BEQ PC_ENTER
@@ -73,7 +73,7 @@ PC_ENTER:
     JSR NEWLINE
     JMP PC_DONE
 
-PC_BKSP: ;move the cursor back one cell and blank it
+PC_BKSP:
     LDA CUR_L
     BNE PB_1
     DEC CUR_H
@@ -93,7 +93,7 @@ PC_DONE:
     LDY TMP
     RTS
 
-CUR_INC: ;moves the cursor forward one cell, scrolls at the bottom
+CUR_INC:
     INC CUR_L
     BNE CI_1
     INC CUR_H
@@ -121,13 +121,13 @@ CI_2:
 CI_DONE:
     RTS
 
-NEWLINE: ;moves the cursor to the start of the next row
+NEWLINE:
     JSR CUR_INC
     LDA COL
     BNE NEWLINE
     RTS
 
-SCROLL: ;moves rows 1-24 up to rows 0-23 and blanks the last row
+SCROLL:
     LDA #$00
     STA DST_L
     LDA #$04
@@ -211,7 +211,7 @@ SH_BKSP:
     JSR SYS_PUTCHAR
     JMP SHELL_LOOP
 
-SH_ENTER: ;a command is one letter followed by enter: E R S or L
+SH_ENTER:
     LDA #$0D
     JSR SYS_PUTCHAR
     LDA LEN
@@ -230,11 +230,6 @@ SH_ENTER: ;a command is one letter followed by enter: E R S or L
     BEQ CMD_GAME
 SH_NONE:
     JMP SHELL_PROMPT
-    ;E enter = type text into the buffer at $2000 (Esc to finish)
-    ;R enter = run whatever is at $2000
-    ;S enter = save $2000 to disk sector 1
-    ;L enter = load disk sector 1 to $2000
-    ;G enter = load the game from disk sectors 2-5 and play it
 
 CMD_RUN:
     JSR PROG_ADDR
@@ -242,7 +237,6 @@ CMD_RUN:
 
 CMD_EDIT:
     LDY #$00
-
 EDIT_LOOP:
     JSR SYS_GETCHAR
     CMP #$1B
@@ -304,9 +298,40 @@ CMD_LOAD:
     JSR PRINT_OK
     JMP SHELL_PROMPT
 
-CMD_GAME: ;loads sectors 2,3,4,5 to $2100-$24FF then runs $2100
+CMD_GAME:
+    JSR PRINT_MENU
+GM_INPUT:
+    JSR SYS_GETCHAR
+    CMP #$31
+    BEQ LOAD_SNAKE
+    CMP #$32
+    BEQ LOAD_PONG
+    CMP #$33
+    BEQ LOAD_ROGUE
+    JMP GM_INPUT
+
+LOAD_SNAKE:
     LDA #$02
     STA SECN
+    LDA #$06
+    STA END_SEC
+    JMP LOAD_EXEC
+
+LOAD_PONG:
+    LDA #$06
+    STA SECN
+    LDA #$0A
+    STA END_SEC
+    JMP LOAD_EXEC
+
+LOAD_ROGUE:
+    LDA #$0A
+    STA SECN
+    LDA #$0F
+    STA END_SEC
+    JMP LOAD_EXEC
+
+LOAD_EXEC:
     LDA #$21
     STA PAGEH
     LDA #$00
@@ -321,7 +346,7 @@ GM_LOOP:
     INC PAGEH
     INC SECN
     LDA SECN
-    CMP #$06
+    CMP END_SEC
     BNE GM_LOOP
     JSR GAME_ADDR
     JSR SYS_CLEAR
@@ -331,3 +356,94 @@ GM_LOOP:
     LDA #$04
     STA CUR_H
     JMP SHELL_PROMPT
+
+PRINT_MENU:
+    LDA #$0D
+    JSR SYS_PUTCHAR
+    LDA #$53
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$4C
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$43
+    JSR SYS_PUTCHAR
+    LDA #$54
+    JSR SYS_PUTCHAR
+    LDA #$20
+    JSR SYS_PUTCHAR
+    LDA #$47
+    JSR SYS_PUTCHAR
+    LDA #$41
+    JSR SYS_PUTCHAR
+    LDA #$4D
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$3A
+    JSR SYS_PUTCHAR
+    LDA #$0D
+    JSR SYS_PUTCHAR
+    LDA #$31
+    JSR SYS_PUTCHAR
+    LDA #$2E
+    JSR SYS_PUTCHAR
+    LDA #$20
+    JSR SYS_PUTCHAR
+    LDA #$53
+    JSR SYS_PUTCHAR
+    LDA #$4E
+    JSR SYS_PUTCHAR
+    LDA #$41
+    JSR SYS_PUTCHAR
+    LDA #$4B
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$0D
+    JSR SYS_PUTCHAR
+    LDA #$32
+    JSR SYS_PUTCHAR
+    LDA #$2E
+    JSR SYS_PUTCHAR
+    LDA #$20
+    JSR SYS_PUTCHAR
+    LDA #$50
+    JSR SYS_PUTCHAR
+    LDA #$4F
+    JSR SYS_PUTCHAR
+    LDA #$4E
+    JSR SYS_PUTCHAR
+    LDA #$47
+    JSR SYS_PUTCHAR
+    LDA #$0D
+    JSR SYS_PUTCHAR
+    LDA #$33
+    JSR SYS_PUTCHAR
+    LDA #$2E
+    JSR SYS_PUTCHAR
+    LDA #$20
+    JSR SYS_PUTCHAR
+    LDA #$52
+    JSR SYS_PUTCHAR
+    LDA #$4F
+    JSR SYS_PUTCHAR
+    LDA #$47
+    JSR SYS_PUTCHAR
+    LDA #$55
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$4C
+    JSR SYS_PUTCHAR
+    LDA #$49
+    JSR SYS_PUTCHAR
+    LDA #$4B
+    JSR SYS_PUTCHAR
+    LDA #$45
+    JSR SYS_PUTCHAR
+    LDA #$0D
+    JSR SYS_PUTCHAR
+    RTS
