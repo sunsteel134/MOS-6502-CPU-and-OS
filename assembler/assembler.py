@@ -36,6 +36,10 @@ class assembler:
                     current_address = int(addr_str, 0)
                     self.PC = current_address
                     continue
+                if line.upper().startswith(('.BYTE', '.DB')):  # NEW
+                    pass1_cleaned.append((current_address, line))  # NEW
+                    current_address += len(line.split(None, 1)[1].split(','))  # NEW
+                    continue
                 if ':' in line:
                     parts = line.split(':', 1)
                     label = parts[0].strip()
@@ -74,8 +78,7 @@ class assembler:
         mode = self._infer_mode(operand)
         if mode == MODE_ACCUMULATOR:
             return 1
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
-                    MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
             return 2
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             return 3
@@ -122,6 +125,18 @@ class assembler:
         parts = line.split(None, 1)
         pneumonic = parts[0].upper()
         operand = parts[1].strip() if len(parts) > 1 else ""
+        if pneumonic in ('.BYTE', '.DB'):
+            out = []
+            for tok in operand.split(','):
+                tok = tok.strip()
+                if tok in self.symbols:
+                    val = self.symbols[tok]
+                else:
+                    if tok.startswith('$'):
+                        tok = '0x' + tok[1:]
+                    val = int(tok, 0)
+                out.append(val & 0xFF)
+            return out
         branches = ("BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS")
         inverted_branches = {
             "BEQ": "BNE", "BNE": "BEQ",
@@ -183,8 +198,7 @@ class assembler:
             raise ValueError(f"Unsupported instruction/mode combination: {pneumonic} with mode {mode}")
         opcode = opcodes[key]
         result = [opcode]
-        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X,
-                    MODE_INDIRECT_Y):
+        if mode in (MODE_IMMEDIATE, MODE_ZERO_PAGE, MODE_ZERO_PAGE_X, MODE_ZERO_PAGE_Y, MODE_INDIRECT_X, MODE_INDIRECT_Y):
             result.append(val & 0xFF)
         elif mode in (MODE_ABSOLUTE, MODE_ABSOLUTE_X, MODE_ABSOLUTE_Y, MODE_INDIRECT):
             result.append(val & 0xFF)
