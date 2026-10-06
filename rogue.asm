@@ -1,6 +1,11 @@
 PX = $30
 PY = $31
-HP = $50
+HP   = $54
+DMG  = $55
+RDMG = $56
+RNG  = $57
+SPD  = $58
+TCNT = $59
 GOLD = $51
 ROOM = $34
 SAVESP = $35
@@ -55,13 +60,35 @@ START:
     LDA #$35
 SEED_OK:
     STA SEED
-
+    LDX #$12
+SHOW:
+    LDA MENU,X
+    STA $07C0,X
+    DEX
+    BPL SHOW
 WAIT_KEY:
     INC SEED
     LDA KEYBOARD
     BEQ WAIT_KEY
-    LDA #$00
-    STA KEYBOARD
+    LDX #$00
+    STX KEYBOARD
+    SEC
+    SBC #$31
+    CMP #$04
+    BCS WAIT_KEY
+    STA TCNT
+    ASL
+    ASL
+    ADC TCNT
+    TAY
+    LDX #$00
+CP:
+    LDA CLASSTAB,Y
+    STA HP,X
+    INY
+    INX
+    CPX #$05
+    BNE CP
 
 LOAD:
     LDA #$02
@@ -103,7 +130,21 @@ INPUT:
     BEQ MV_D
     CMP #$64
     BEQ MV_D
+    CMP #$20
+    BEQ FIRE
+NOKEY:
     JMP INPUT
+FIRE:
+    LDX #M1_TYPE
+    JSR CHK_RNG
+    BCC F_GO
+    LDX #M2_TYPE
+    JSR CHK_RNG
+    BCS NOKEY
+F_GO:
+    LDA RDMG
+    JSR ATK
+    JMP TURN
 
 MV_W:
     LDA PX
@@ -252,35 +293,41 @@ EXIT_C:
     JMP QUIT
 
 TURN:
+    LDA SPD
+    STA TCNT
+TN:
     JSR PROC_MONS
+    DEC TCNT
+    BNE TN
     LDA HP
     BNE LOOP
     JMP QUIT
 
 ATK_M1:
-    JSR RAND
-    AND #$03
-    BEQ M1_MISS
-    DEC M1_HP
-    BNE M1_MISS
-    LDA M1_TYPE
-    JSR REWARD
-    LDA #$00
-    STA M1_TYPE
-M1_MISS:
-    RTS
-
+    LDA DMG
+    LDX #M1_TYPE
+    BNE ATK
 ATK_M2:
+    LDA DMG
+    LDX #M2_TYPE
+    BNE ATK
+ATK:
+    STA TCNT
     JSR RAND
     AND #$03
-    BEQ M2_MISS
-    DEC M2_HP
-    BNE M2_MISS
-    LDA M2_TYPE
+    BEQ A_RET
+    LDA $03,X
+    SEC
+    SBC TCNT
+    STA $03,X
+    BEQ A_DIE
+    BCS A_RET
+A_DIE:
+    LDA $00,X
     JSR REWARD
     LDA #$00
-    STA M2_TYPE
-M2_MISS:
+    STA $00,X
+A_RET:
     RTS
 
 ADD_G:
@@ -310,8 +357,7 @@ R_3:
 PROC_MONS:
     LDA M1_TYPE
     BEQ PM2
-    LDX M1_X
-    LDY M1_Y
+    LDX #M1_TYPE
     JSR MON_ATK
     LDX M1_X
     LDY M1_Y
@@ -322,8 +368,7 @@ PROC_MONS:
 PM2:
     LDA M2_TYPE
     BEQ PM_D
-    LDX M2_X
-    LDY M2_Y
+    LDX #M2_TYPE
     JSR MON_ATK
     LDX M2_X
     LDY M2_Y
@@ -396,35 +441,42 @@ SM_FAIL:
     RTS
 
 MON_ATK:
-    STX TGT_X
-    STY TGT_Y
-    LDA PX
-    SEC
-    SBC TGT_X
-    BPL MA_X_POS
-    STA PTR_L
-    LDA #$00
-    SEC
-    SBC PTR_L
-MA_X_POS:
-    STA PTR_L
-    LDA PY
-    SEC
-    SBC TGT_Y
-    BPL MA_Y_POS
-    STA PTR_H
-    LDA #$00
-    SEC
-    SBC PTR_H
-MA_Y_POS:
-    CLC
-    ADC PTR_L
+    JSR DIST
     CMP #$02
     BCS MA_DONE
     LDA HP
     BEQ MA_DONE
     DEC HP
 MA_DONE:
+    RTS
+
+DIST:
+    LDA PX
+    SEC
+    SBC $01,X
+    BPL D1
+    EOR #$FF
+    ADC #$01
+D1:
+    STA PTR_L
+    LDA PY
+    SEC
+    SBC $02,X
+    BPL D2
+    EOR #$FF
+    ADC #$01
+D2:
+    CLC
+    ADC PTR_L
+    RTS
+
+CHK_RNG:
+    LDA $00,X
+    SEC
+    BEQ CR_RET
+    JSR DIST
+    CMP RNG
+CR_RET:
     RTS
 
 GEN_ROOM:
@@ -701,9 +753,9 @@ DRAW_STATS:
     LDA #$3A
     STA $07C4
     LDA HP
-    CLC
-    ADC #$30
-    STA $07C5
+    JSR P_2D
+    STX $07C5
+    STA $07C6
     LDA #$47
     STA $07CB
     LDA #$3A
@@ -775,3 +827,12 @@ IR_NC:
 
 QUIT:
     RTS
+
+CLASSTAB:
+    .BYTE $0A,$01,$01,$05,$01   ; ranger
+    .BYTE $14,$03,$00,$00,$03   ; barbarian
+    .BYTE $0F,$01,$00,$00,$01   ; fighter
+    .BYTE $05,$01,$03,$09,$02   ; wizard
+MENU:
+    .BYTE $31,$52,$41,$4E,$20,$32,$42,$41,$52,$20
+    .BYTE $33,$46,$49,$47,$20,$34,$57,$49,$5A
