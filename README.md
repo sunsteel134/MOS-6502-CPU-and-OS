@@ -11,6 +11,7 @@ The wizard has ranged magic from a great distance but low health and is very slo
 The ranger has a low but not too low amount of health and a small range for damage but is fast
 
 The barbarian has high health and high melee damage but is the most slow
+
 Finally the fighter has a medium amount of health and does a small amount of melee damage 
 
 Your overall goal is to get as much goal and escape the dungeon
