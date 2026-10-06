@@ -13,6 +13,7 @@ ROOM_W = $3B
 ROOM_H = $3C
 MON_X = $3D
 MON_Y = $3E
+RCNT = $3F
 
 M1_TYPE = $40
 M1_X = $41
@@ -28,6 +29,10 @@ GOLD_X2 = $4A
 GOLD_Y2 = $4B
 G_CNT = $4C
 M_CNT = $4D
+EXIT_X = $4E
+EXIT_Y = $4F
+POS_X  = $52
+POS_Y  = $53
 
 KEYBOARD = $0200
 ROWL = $3200
@@ -51,12 +56,18 @@ START:
 SEED_OK:
     STA SEED
 
+WAIT_KEY:
+    INC SEED
+    LDA KEYBOARD
+    BEQ WAIT_KEY
+    LDA #$00
+    STA KEYBOARD
+
 LOAD:
-    JSR GEN_ROOM
-    JSR DRAW_MAP
     LDA #$02
     STA PX
     STA PY
+    JSR GEN_ROOM
     JSR SPAWN_GOLD
     JSR SPAWN_MONS
 
@@ -236,7 +247,7 @@ EXIT_C:
     STA GOLD_Y2
     INC ROOM
     LDA ROOM
-    CMP #$0B
+    CMP #$0A
     BNE LOAD
     JMP QUIT
 
@@ -288,13 +299,13 @@ REWARD:
     CMP #$53
     BEQ R_3
     LDA #$05
-    JSR ADD_G
+    JMP ADD_G
 R_1:
     LDA #$01
-    JSR ADD_G
+    JMP ADD_G
 R_3:
     LDA #$03
-    JSR ADD_G
+    JMP ADD_G
 
 PROC_MONS:
     LDA M1_TYPE
@@ -427,60 +438,42 @@ GEN_ROOM:
     CLC
     ADC #$06
     STA ROOM_H
+    LDA #$00
+    STA M1_TYPE
+    STA M1_X
+    STA M2_TYPE
+    STA M2_X
+    STA GOLD_X
+    STA GOLD_X2
+    STA G_CNT
+    STA M_CNT
+    LDA ROOM_W
+    SEC
+    SBC #1
+    STA EXIT_X
+    LDA ROOM_H
+    SEC
+    SBC #1
+    STA EXIT_Y
     RTS
 
 SPAWN_GOLD:
     JSR RAND
     AND #$03
-    BEQ SG_NONE
+    BEQ SG_DONE
     CMP #$03
-    BEQ SG_NONE
+    BEQ SG_DONE
     STA G_CNT
-    JSR RAND
-    AND #$0F
-    CLC
-    ADC #$02
-    CMP ROOM_W
-    BCC SG_X1
-    LDA #$03
-SG_X1:
+    JSR PICK_POS
     STA GOLD_X
-    JSR RAND
-    AND #$07
-    CLC
-    ADC #$02
-    CMP ROOM_H
-    BCC SG_Y1
-    LDA #$03
-SG_Y1:
-    STA GOLD_Y
+    STY GOLD_Y
     LDA G_CNT
     CMP #$02
     BCC SG_DONE
-    JSR RAND
-    AND #$0F
-    CLC
-    ADC #$02
-    CMP ROOM_W
-    BCC SG_X2
-    LDA #$03
-SG_X2:
+    JSR PICK_POS
     STA GOLD_X2
-    JSR RAND
-    AND #$07
-    CLC
-    ADC #$02
-    CMP ROOM_H
-    BCC SG_Y2
-    LDA #$03
-SG_Y2:
-    STA GOLD_Y2
+    STY GOLD_Y2
 SG_DONE:
-    RTS
-SG_NONE:
-    LDA #$00
-    STA G_CNT
-    STA GOLD_X
     RTS
 
 SPAWN_MONS:
@@ -505,103 +498,104 @@ SM_NONE:
     RTS
 
 SPAWN_M1:
-SM1_RETRY:
-    JSR RAND
-    AND #$03
-    TAX
-    LDA #$5A
-    LDY #$02
-    CPX #$01
-    BNE SM1_SLIME
-    LDA #$53
-SM1_SLIME:
-    CPX #$02
-    BNE SM1_TYPE
-    LDA #$47
-    LDY #$04
-SM1_TYPE:
+    JSR PICK_TYPE
     STA M1_TYPE
     STY M1_HP
-    JSR RAND
-    AND #$0F
-    CLC
-    ADC #$03
-    CMP ROOM_W
-    BCC SM1_X
-    LDA #$04
-SM1_X:
+    JSR PICK_POS
     STA M1_X
-    JSR RAND
-    AND #$07
-    CLC
-    ADC #$02
-    CMP ROOM_H
-    BCC SM1_Y
-    LDA #$04
-SM1_Y:
-    STA M1_Y
-    LDA M1_X
-    CMP #$02
-    BNE SM1_OK
-    LDA M1_Y
-    CMP #$02
-    BEQ SM1_RETRY
-SM1_OK:
+    STY M1_Y
     RTS
 
 SPAWN_M2:
-SM2_RETRY:
+    JSR PICK_TYPE
+    STA M2_TYPE
+    STY M2_HP
+    JSR PICK_POS
+    STA M2_X
+    STY M2_Y
+    RTS
+
+PICK_POS:
+PP_RETRY:
+    JSR RAND
+    AND #$1F
+    CMP ROOM_W
+    BCS PP_RETRY
+    CMP #$02
+    BCC PP_RETRY
+    STA POS_X
+    JSR RAND
+    AND #$0F
+    CMP ROOM_H
+    BCS PP_RETRY
+    CMP #$02
+    BCC PP_RETRY
+    STA POS_Y
+    LDX #PX
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDX #EXIT_X
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDX #GOLD_X
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDX #GOLD_X2
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDX #M1_X
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDX #M2_X
+    JSR CHK_AT
+    BCS PP_RETRY
+    LDA POS_X
+    LDY POS_Y
+    RTS
+
+CHK_AT:
+    LDA POS_X
+    CMP $00,X
+    BNE CA_FREE
+    LDA POS_Y
+    CMP $01,X
+    BNE CA_FREE
+    SEC
+    RTS
+CA_FREE:
+    CLC
+    RTS
+
+PICK_TYPE:
     JSR RAND
     AND #$03
     TAX
     LDA #$5A
     LDY #$02
     CPX #$01
-    BNE SM2_S
+    BNE PT_1
     LDA #$53
-SM2_S:
+PT_1:
     CPX #$02
-    BNE SM2_G
+    BNE PT_2
     LDA #$47
     LDY #$04
-SM2_G:
-    STA M2_TYPE
-    STY M2_HP
-    JSR RAND
-    AND #$0F
-    CLC
-    ADC #$04
-    CMP ROOM_W
-    BCC SM2_X
-    LDA #$05
-SM2_X:
-    STA M2_X
-    JSR RAND
-    AND #$07
-    CLC
-    ADC #$03
-    CMP ROOM_H
-    BCC SM2_Y
-    LDA #$05
-SM2_Y:
-    STA M2_Y
-    LDA M2_X
-    CMP M1_X
-    BNE SM2_OK
-    LDA M2_Y
-    CMP M1_Y
-    BEQ SM2_RETRY
-SM2_OK:
+PT_2:
     RTS
 
 RAND:
+    LDA #$08
+    STA RCNT
     LDA SEED
-    BNE R_RESEED
+    BNE R_LOOP
     LDA #$A5
-    STA SEED
-R_RESEED:
-    LDA #$A5
-R_DONE:
+R_LOOP:
+    ASL
+    BCC R_NX
+    EOR #$1D
+R_NX:
+    DEC RCNT
+    BNE R_LOOP
     STA SEED
     RTS
 
@@ -643,26 +637,28 @@ DM_LR:
     INX
     CPX ROOM_H
     BCC DM_LR
+    LDY ROOM_H
+    JSR SET_PTR_Y
+    LDY ROOM_W
+    LDA #$23
+    STA (PTR_L),Y
+    RTS
     RTS
 
 DRAW_FEAT:
-    LDX ROOM_H
-    DEX
+    LDX EXIT_Y
     JSR SET_PTR
     LDA #$45
-    LDY ROOM_W
-    DEY
+    LDY EXIT_X
     STA (PTR_L),Y
     LDA GOLD_X
-    BEQ DF_D
+    BEQ DF_G2
     LDX GOLD_Y
     JSR SET_PTR
     LDA #$24
     LDY GOLD_X
     STA (PTR_L),Y
-    LDA G_CNT
-    CMP #$02
-    BCC DF_D
+DF_G2:
     LDA GOLD_X2
     BEQ DF_D
     LDX GOLD_Y2
