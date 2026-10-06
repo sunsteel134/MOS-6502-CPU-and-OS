@@ -9,3 +9,12 @@ The ranger has a low but not too low amount of health and a small range for dama
 The barbarian has high health and high melee damage but is the most slow
 Finally the fighter has a medium amount of health and does a small amount of melee damage 
 Your overall goal is to get as much goal and escape the dungeon
+The other commands on the shell are as follows:
+
+E will let you edit the file loaded
+
+R lets you run the file loaded
+
+S lets you save the file loaded
+
+L loads the first sector of the disk memory
