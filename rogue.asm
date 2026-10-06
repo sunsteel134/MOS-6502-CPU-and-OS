@@ -290,7 +290,7 @@ EXIT_C:
     LDA ROOM
     CMP #$0A
     BNE LOAD
-    JMP QUIT
+    JMP WIN
 
 TURN:
     LDA SPD
@@ -301,7 +301,7 @@ TN:
     BNE TN
     LDA HP
     BNE LOOP
-    JMP QUIT
+    JMP LOSE
 
 ATK_M1:
     LDA DMG
@@ -651,7 +651,7 @@ R_NX:
     STA SEED
     RTS
 
-DRAW_MAP:
+CLS:
     LDX #$00
     LDA #$20
 DM_C:
@@ -661,6 +661,10 @@ DM_C:
     STA $0700,X
     INX
     BNE DM_C
+    RTS
+
+DRAW_MAP:
+    JSR CLS
     LDX #$01
 DM_TB:
     LDY #$01
@@ -694,7 +698,6 @@ DM_LR:
     LDY ROOM_W
     LDA #$23
     STA (PTR_L),Y
-    RTS
     RTS
 
 DRAW_FEAT:
@@ -828,6 +831,50 @@ IR_NC:
 QUIT:
     RTS
 
+LOSE:
+    JSR CLS
+    LDX #$08
+L1:
+    LDA T_OVER,X
+    STA $05EF,X
+    DEX
+    BPL L1
+    JMP END_WAIT
+
+WIN:
+    JSR CLS
+    LDX #$07
+W1:
+    LDA T_WIN,X
+    STA $05C8,X
+    DEX
+    BPL W1
+    LDX #$0C
+W2:
+    LDA T_SC,X
+    STA $0615,X
+    DEX
+    BPL W2
+    LDA GOLD
+    JSR P_2D
+    STX $061A
+    STA $061B
+    LDA HP
+    JSR P_2D
+    STX $0620
+    STA $0621
+    JMP END_WAIT
+
+END_WAIT:
+    LDA #$00
+    STA KEYBOARD
+EW:
+    LDA KEYBOARD
+    BEQ EW
+    LDA #$00
+    STA KEYBOARD
+    RTS
+
 CLASSTAB:
     .BYTE $0A,$01,$01,$05,$01   ; ranger
     .BYTE $14,$03,$00,$00,$03   ; barbarian
@@ -836,3 +883,9 @@ CLASSTAB:
 MENU:
     .BYTE $31,$52,$41,$4E,$20,$32,$42,$41,$52,$20
     .BYTE $33,$46,$49,$47,$20,$34,$57,$49,$5A
+T_OVER:
+    .BYTE $47,$41,$4D,$45,$20,$4F,$56,$45,$52
+T_WIN:
+    .BYTE $59,$4F,$55,$20,$57,$49,$4E,$21
+T_SC:
+    .BYTE $47,$4F,$4C,$44,$3A,$30,$30,$20,$48,$50,$3A,$30,$30
